@@ -1,4 +1,8 @@
 import Phaser from 'phaser';
+import { playHeroAttack, playEnemyAttack, playHit } from './audio.js';
+import { combatPower, enemyDamage } from './game-engine.js';
+
+const fmt = (n) => !Number.isFinite(n) || n < 0 ? '0' : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
 
 const HERO_ASSETS = {
   sprout: '/assets/sprout-knight.webp', rose: '/assets/rose-mage.webp', oak: '/assets/oak-sentinel.webp',
@@ -35,12 +39,14 @@ function drawHero(scene, hero, x, y, scale = 1) {
   const texture = `hero-${hero.id}`;
   if (scene.textures.exists(texture)) {
     const sprite = scene.add.image(x, y, texture);
+    sprite.heroId = hero.id;
     sprite.setScale((127 * scale) / sprite.height);
     scene.tweens.add({ targets: sprite, y: y - 6 * scale, angle: hero.plot % 2 ? 2 : -2, duration: 1250 + hero.plot * 130, ease: 'Sine.easeInOut', yoyo: true, repeat: -1, delay: hero.plot * 150 });
     return sprite;
   }
   const p = PALETTES[hero.id];
   const group = scene.add.container(x, y);
+  group.heroId = hero.id;
   const g = scene.add.graphics();
   group.add(g);
   ellipse(g, 0x486b3b, 0, 43, 72, 13, 0.14);
@@ -192,6 +198,49 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         }
       });
     }
+    tapHero(heroId) {
+      const sprite = this.characters.get(heroId);
+      if (!sprite || !sprite.active) return;
+      this.tweens.killTweensOf(sprite);
+      const origX = sprite.x;
+      const origY = sprite.y;
+      this.tweens.add({
+        targets: sprite,
+        scaleX: sprite.scaleX * 1.25,
+        scaleY: sprite.scaleY * 0.78,
+        y: origY + 4,
+        duration: 90,
+        yoyo: true,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.tweens.add({
+            targets: sprite,
+            scaleX: sprite.scaleX * 0.96,
+            scaleY: sprite.scaleY * 1.12,
+            y: origY - 6,
+            duration: 110,
+            yoyo: true,
+            ease: 'Sine.easeInOut',
+          });
+        },
+      });
+      // Burst of colorful heart and leaf particles
+      for (let i = 0; i < 6; i++) {
+        const angle = (i / 6) * Math.PI * 2;
+        const dist = Phaser.Math.Between(30, 52);
+        const particle = this.add.ellipse(origX, origY - 12, 8, 5, i % 2 ? 0x95d66b : 0xf7b3c2);
+        this.tweens.add({
+          targets: particle,
+          x: origX + Math.cos(angle) * dist,
+          y: origY - 22 + Math.sin(angle) * dist,
+          alpha: 0,
+          scale: 0.3,
+          duration: 500,
+          ease: 'Quad.easeOut',
+          onComplete: () => particle.destroy(),
+        });
+      }
+    }
   }
 
   class CombatScene extends Phaser.Scene {
@@ -206,6 +255,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       document.body.classList.add('phaser-combat-ready');
       this.sync();
       this.time.addEvent({ delay: 850, loop: true, callback: () => this.attack() });
+      this.time.addEvent({ delay: 1700, loop: true, callback: () => this.enemyAttack() });
       this.tweens.timeScale = getMotion() ? 1 : 0;
       this.time.timeScale = getMotion() ? 1 : 0;
     }
@@ -250,20 +300,116 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       const enemyType = ['mushroom', 'bramble', 'slime', 'wasp', 'boss'][(state.battle.wave - 1) % 5];
       this.enemy = drawEnemy(this, enemyType, enemy.x, enemy.y);
     }
+    showDamage(text, isCrit = false, isParty = false) {
+      if (getScreen() !== 'combat') return;
+      const targetX = isParty ? (this.characters[0]?.x || 160) : (this.enemy?.x || 500);
+      const targetY = isParty ? (this.characters[0]?.y || 140) - 25 : (this.enemy?.y || 135) - 40;
+      const color = isParty ? '#f57474' : (isCrit ? '#ffde59' : '#ffffff');
+      const stroke = isParty ? '#661f1f' : '#2d4b26';
+      const txt = this.add.text(targetX + Phaser.Math.Between(-18, 18), targetY + Phaser.Math.Between(-10, 10), text, {
+        fontFamily: 'Fredoka, sans-serif',
+        fontSize: isCrit ? '20px' : '14px',
+        fontStyle: 'bold',
+        color,
+        stroke,
+        strokeThickness: 3,
+      }).setOrigin(0.5);
+
+      this.tweens.add({
+        targets: txt,
+        y: txt.y - (isCrit ? 42 : 30),
+        scaleX: isCrit ? 1.2 : 1.05,
+        scaleY: isCrit ? 1.2 : 1.05,
+        alpha: 0,
+        duration: isCrit ? 800 : 650,
+        ease: 'Cubic.easeOut',
+        onComplete: () => txt.destroy(),
+      });
+    }
     attack() {
       if (getScreen() !== 'combat' || !this.enemy || !this.characters.length) return;
       const source = this.characters[Phaser.Math.Between(0, this.characters.length - 1)];
       if (!source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
-      const spark = this.add.ellipse(source.x + 15, source.y - 12, 17, 9, 0xf8d77a).setRotation(-0.6);
-      this.tweens.add({ targets: spark, x: this.enemy.x - 17, y: this.enemy.y - 6, rotation: 4, duration: 360, ease: 'Sine.easeIn', onComplete: () => {
+
+      if (source.heroId) playHeroAttack(source.heroId);
+
+      const colors = { sprout: 0x74c25a, rose: 0xf58da8, oak: 0xb58c5c, daisy: 0xffe277, moss: 0x77baa1, sunflower: 0xffce48 };
+      const projColor = colors[source.heroId] || 0xf8d77a;
+
+      const spark = this.add.ellipse(source.x + 15, source.y - 12, 16, 9, projColor).setRotation(-0.6);
+      this.tweens.add({ targets: spark, x: this.enemy.x - 17, y: this.enemy.y - 6, rotation: 4, duration: 340, ease: 'Sine.easeIn', onComplete: () => {
         spark.destroy();
+        playHit();
+
+        const st = getState();
+        const power = combatPower(st);
+        const isCrit = Math.random() < 0.15;
+        const dmg = Math.max(1, Math.round((power * 0.8) * (isCrit ? 2.0 : (0.9 + Math.random() * 0.2))));
+        this.showDamage(fmt(dmg), isCrit, false);
+
         if (!this.enemy?.active) return;
         this.tweens.add({ targets: this.enemy, scaleX: this.enemy.scaleX * 1.12, scaleY: this.enemy.scaleY * 0.87, duration: 100, yoyo: true, ease: 'Sine.easeOut' });
         for (let i = 0; i < 5; i++) {
-          const particle = this.add.circle(this.enemy.x, this.enemy.y - 8, Phaser.Math.Between(3, 6), i % 2 ? 0xf0c879 : 0xa8d97b);
+          const particle = this.add.circle(this.enemy.x, this.enemy.y - 8, Phaser.Math.Between(3, 6), i % 2 ? 0xf0c879 : projColor);
           this.tweens.add({ targets: particle, x: particle.x + Phaser.Math.Between(-42, 42), y: particle.y + Phaser.Math.Between(-35, 30), alpha: 0, duration: 430, onComplete: () => particle.destroy() });
         }
       } });
+    }
+    enemyAttack() {
+      if (getScreen() !== 'combat' || !this.enemy || !this.characters.length) return;
+      playEnemyAttack();
+      const origX = this.enemy.x;
+      this.tweens.add({
+        targets: this.enemy,
+        x: origX - 25,
+        angle: -4,
+        duration: 110,
+        yoyo: true,
+        ease: 'Quad.easeInOut',
+      });
+      const target = this.characters[Phaser.Math.Between(0, this.characters.length - 1)];
+      if (!target) return;
+      const spore = this.add.circle(this.enemy.x - 20, this.enemy.y, 7, 0x8a554a);
+      this.tweens.add({
+        targets: spore,
+        x: target.x + 15,
+        y: target.y,
+        duration: 320,
+        ease: 'Sine.easeIn',
+        onComplete: () => {
+          spore.destroy();
+          playHit();
+          const wave = getState()?.battle?.wave || 1;
+          const dmg = Math.max(1, Math.round(enemyDamage(wave)));
+          this.showDamage(fmt(dmg), false, true);
+
+          if (!target.active) return;
+          this.tweens.add({ targets: target, x: target.x - 5, duration: 80, yoyo: true });
+        },
+      });
+    }
+    triggerUltimate() {
+      if (getScreen() !== 'combat') return;
+      const width = combatParent.clientWidth || 800;
+      const height = combatParent.clientHeight || 300;
+      const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xfff9db, 0.6);
+      this.tweens.add({ targets: flash, alpha: 0, duration: 550, onComplete: () => flash.destroy() });
+
+      for (let i = 0; i < 24; i++) {
+        const angle = (i / 24) * Math.PI * 2;
+        const dist = Phaser.Math.Between(70, 200);
+        const p = this.add.circle(width / 2, height / 2, Phaser.Math.Between(4, 9), i % 2 ? 0xffdf6d : 0xffffff);
+        this.tweens.add({
+          targets: p,
+          x: width / 2 + Math.cos(angle) * dist,
+          y: height / 2 + Math.sin(angle) * dist,
+          alpha: 0,
+          scale: 0.2,
+          duration: 750,
+          ease: 'Quad.easeOut',
+          onComplete: () => p.destroy(),
+        });
+      }
     }
   }
 
@@ -290,6 +436,9 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
     syncGarden: () => requestAnimationFrame(() => gardenScene?.sync()),
     syncCombat: () => requestAnimationFrame(() => combatScene?.sync()),
     harvest: () => gardenScene?.harvest(),
+    tapHero: (heroId) => gardenScene?.tapHero(heroId),
+    showCombatDamage: (text, isCrit, isParty) => combatScene?.showDamage(text, isCrit, isParty),
+    triggerUltimate: () => combatScene?.triggerUltimate(),
     setMotion: (enabled) => {
       [gardenScene, combatScene].filter(Boolean).forEach(scene => {
         scene.tweens.timeScale = enabled ? 1 : 0;

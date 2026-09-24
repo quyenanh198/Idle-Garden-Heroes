@@ -8,6 +8,9 @@ import {
   ACCESSORIES,
   ENEMIES,
   DEFAULT_STATE,
+  BIOMES,
+  ARTIFACTS,
+  MIN_BLOOM_WAVE,
   troopCount,
   lps,
   combatPower,
@@ -19,10 +22,28 @@ import {
   unitCost,
   boostCost,
   nextPlotCost,
+  artifactCost,
   enemyForWave,
+  biomeForWave,
+  tapHarvestReward,
+  canActivateUltimate,
+  activateUltimate,
+  canBloomAnew,
+  calculateGoldenSeeds,
+  bloomAnew,
   advanceCombat,
   sanitizeSave,
 } from './game-engine.js';
+
+import {
+  setSoundEnabled,
+  playTap,
+  playCritTap,
+  playUpgrade,
+  playVictory,
+  playUlt,
+  playBloom,
+} from './audio.js';
 
 const heroPortrait = (hero) => `<img src="/assets/${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
 const SAVE_KEY = 'idle-garden-hero-v1';
@@ -112,7 +133,7 @@ app.innerHTML = `
     </main>
     <main id="combat-screen" class="screen-view" hidden>
       <section class="combat-intro"><div><div class="eyebrow">✦ &nbsp; THE GLADE NEEDS YOU</div><h1>Defend the <em>garden.</em></h1><p>Your heroes fight automatically while you tend your little world.</p></div><div class="combat-wave-pill">⚔️ &nbsp; WAVE <strong id="wave-label">1</strong></div></section>
-      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status"><span></span> AUTO BATTLE ACTIVE</span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">YOUR LEGION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Legion</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Heroes and troops attack on their own. Grow them in the garden for more power.</span><span id="battle-reward"></span></div></section>
+      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status"><span></span> AUTO BATTLE ACTIVE</span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">YOUR LEGION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Legion</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
       <section class="combat-dashboard"><div class="combat-heading"><div><span class="section-kicker">YOUR ADVENTURE SO FAR</span><h2>Battle camp</h2></div><button class="return-garden" data-screen="garden">Upgrade heroes ${icon('arrow', 17)}</button></div><div class="combat-stat-grid"><div class="combat-stat"><span class="combat-stat-icon">⚔️</span><small>LEGION POWER</small><strong id="combat-power"></strong><p>Damage per second</p></div><div class="combat-stat"><span class="combat-stat-icon">🏆</span><small>WAVES CLEARED</small><strong id="waves-cleared"></strong><p>One victory at a time</p></div><div class="combat-stat"><span class="combat-stat-icon">🍃</span><small>BATTLE LEAVES</small><strong id="battle-earned"></strong><p>Earned from victories</p></div></div><div class="combat-lower"><div class="legion-card"><div class="card-heading"><div><h3>Heroes on the front line</h3><p>Every recruited hero joins the fight</p></div><span class="tiny-badge" id="legion-badge"></span></div><div id="legion-roster"></div></div><div class="battle-tip"><span>🌼</span><div><strong>Stronger roots, stronger heroes.</strong><p>Hero levels boost both Leaf Point production and battle damage. Win waves to earn bonus leaves, then return to the garden to grow your legion.</p></div><button data-screen="garden">Visit your garden ${icon('arrow', 16)}</button></div></div></section>
     </main>
     <main id="bag-screen" class="screen-view utility-screen" hidden><section class="utility-intro"><div><span class="eyebrow">✦ &nbsp; TREASURES FROM THE GLADE</span><h1>Accessories <em>& Bag.</em></h1><p>Win combat waves to discover accessories, then equip one to help your team.</p></div><span class="utility-hero-icon">🎒</span></section><div id="bag-content"></div></main>
@@ -146,6 +167,7 @@ function getBoostCost(boost) { return boostCost(boost, state.boosts[boost.id]); 
 function applySettings() {
   document.body.classList.toggle('motion-off', !state.settings.motion);
   visuals?.setMotion(state.settings.motion);
+  setSoundEnabled(state.settings.sound !== false);
 }
 
 function renderNumbers() {
@@ -224,7 +246,12 @@ function renderPanel() {
 function renderCombat() {
   const battle = state.battle;
   const enemy = enemyForWave(battle.wave);
+  const biome = biomeForWave(battle.wave);
   const owned = HEROES.filter(hero => state.heroes[hero.id]);
+  const biomeEl = document.querySelector('#battle-biome');
+  if (biomeEl) {
+    biomeEl.innerHTML = `${biome.emoji} &nbsp; ${biome.name.toUpperCase()} <span class="biome-desc">${biome.desc}</span>`;
+  }
   document.querySelector('#battle-figures').innerHTML = owned.map(hero => `<span class="battle-hero ${hero.color}" title="${hero.name}">${hero.plant}<small>${hero.emoji}</small></span>`).join('');
   document.querySelector('#legion-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(getTroopCount())} troop${getTroopCount() === 1 ? '' : 's'}`;
   document.querySelector('#enemy-type').textContent = enemy.type.toUpperCase();
@@ -246,10 +273,30 @@ function renderBattleNumbers() {
   document.querySelector('#enemy-hp-label').textContent = `${fmt(battle.enemyHp)} / ${fmt(maxEnemy)}`;
   document.querySelector('#party-hp-fill').style.width = `${Math.max(0, Math.min(100, (battle.partyHp / maxParty) * 100))}%`;
   document.querySelector('#enemy-hp-fill').style.width = `${Math.max(0, Math.min(100, (battle.enemyHp / maxEnemy) * 100))}%`;
-  document.querySelector('#battle-reward').textContent = `🍃 +${fmt(waveReward(battle.wave, state.equipped))} on victory`;
+  document.querySelector('#battle-reward').textContent = `🍃 +${fmt(waveReward(battle.wave, state.equipped, state))} on victory`;
   document.querySelector('#combat-power').textContent = fmtRate(getCombatPower());
   document.querySelector('#waves-cleared').textContent = fmt(battle.wins);
   document.querySelector('#battle-earned').textContent = fmt(battle.earned);
+
+  const ultBtn = document.querySelector('#ult-btn');
+  const ultFill = document.querySelector('#ult-fill');
+  const ultStatus = document.querySelector('#ult-status');
+  if (ultBtn && ultFill) {
+    const energy = Math.min(100, Math.max(0, battle.energy || 0));
+    ultFill.style.width = `${energy}%`;
+    const isUltActive = (battle.ultActiveUntil || 0) > Date.now();
+    if (isUltActive) {
+      const secLeft = Math.ceil((battle.ultActiveUntil - Date.now()) / 1000);
+      ultBtn.classList.add('active');
+      ultBtn.disabled = true;
+      if (ultStatus) ultStatus.textContent = `BURST ACTIVE (${secLeft}s)`;
+    } else {
+      ultBtn.classList.remove('active');
+      const canUlt = canActivateUltimate(state);
+      ultBtn.disabled = !canUlt;
+      if (ultStatus) ultStatus.textContent = canUlt ? 'READY TO UNLEASH!' : `Charging (${Math.floor(energy)}%)`;
+    }
+  }
 }
 function renderBag() {
   const earned = ACCESSORIES.filter(item => state.battle.wins >= item.unlockAt).length;
@@ -260,17 +307,150 @@ function renderBag() {
     return `<article class="accessory-card ${unlocked ? '' : 'accessory-locked'} ${selected ? 'equipped' : ''}"><span class="accessory-art">${unlocked ? item.emoji : '🔒'}</span><div class="accessory-copy"><span class="accessory-status">${selected ? 'EQUIPPED' : unlocked ? 'FOUND' : `UNLOCK AT ${item.unlockAt} WINS`}</span><h3>${item.name}</h3><p>${item.desc}</p><strong>${item.bonus}</strong></div><button data-equip="${item.id}" ${unlocked ? '' : 'disabled'}>${selected ? 'Unequip' : unlocked ? 'Equip' : 'Locked'}</button></article>`;
   }).join('')}</div>`;
 }
+
+let bloomConfirming = false;
 function renderUpgrades() {
-  document.querySelector('#upgrades-content').innerHTML = `<div class="utility-summary"><span class="summary-art">🍃</span><div><span class="section-kicker">AVAILABLE TO SPEND</span><h2><span id="upgrade-leaves">${fmt(state.leaves)}</span> Leaf Points</h2><p>Each upgrade helps every hero, even future recruits.</p></div><button class="summary-link" data-screen="garden">Grow heroes ${icon('arrow', 16)}</button></div><div class="utility-section-title"><div><h2>Permanent boosts</h2><p>Build a stronger garden one step at a time.</p></div></div><div class="boost-grid">${BOOSTS.map(boost => {
-    const level = state.boosts[boost.id];
-    const maxed = level >= 20;
-    const value = boost.id === 'vitality' ? `+${level * 40} HP` : `+${Math.round(level * (boost.id === 'harvest' ? 25 : 20))}%`;
-    return `<article class="boost-card ${boost.color}"><span class="boost-art">${boost.emoji}</span><span class="boost-level">LVL ${level} / 20</span><h3>${boost.name}</h3><p>${boost.desc}</p><div class="boost-effect"><span>CURRENT BONUS</span><strong>${value}</strong></div><button class="primary-button" data-boost="${boost.id}" ${maxed || state.leaves < getBoostCost(boost) ? 'disabled' : ''}>${maxed ? 'Max level' : `Upgrade <span>🍃 ${fmt(getBoostCost(boost))}</span>`}</button></article>`;
-  }).join('')}</div>`;
+  const seeds = state.goldenSeeds || 0;
+  const canBloom = canBloomAnew(state);
+  const seedsPreview = calculateGoldenSeeds(state);
+
+  document.querySelector('#upgrades-content').innerHTML = `
+    <div class="upgrades-currency-bar">
+      <div class="currency-badge">🍃 <strong id="upgrade-leaves">${fmt(state.leaves)}</strong> <small>Leaves</small></div>
+      <div class="currency-badge seeds">🌟 <strong id="upgrade-seeds">${fmt(seeds)}</strong> <small>Golden Seeds</small></div>
+    </div>
+
+    <!-- Bloom Anew Prestige Banner -->
+    <div class="bloom-card ${canBloom ? '' : 'locked'}">
+      <div class="bloom-header">
+        <div class="bloom-header-copy">
+          <span class="section-kicker">PRESTIGE · TRANSCEND THE GLADE</span>
+          <h3>🌸 Bloom Anew</h3>
+          <p>${canBloom ? 'Your garden has flourished beyond Wave 25! Transcend now to harvest cosmic Golden Seeds and unlock permanent ancient artifacts that empower your future cycles.' : `Reach Wave 25 to unlock Bloom Anew. Current: Wave ${state.battle.wave} / ${MIN_BLOOM_WAVE}. Keep defending the glade!`}</p>
+        </div>
+        <div class="bloom-reward-badge">
+          <small>CLAIMABLE</small>
+          <strong>+${seedsPreview} 🌟</strong>
+          <small>SEEDS</small>
+        </div>
+      </div>
+      <div class="bloom-action-row">
+        <span class="bloom-note">${canBloom ? '⚠️ Resets heroes, plots, and waves in exchange for permanent Golden Seeds. Artifacts & Bag treasures are kept!' : `Unlocks automatically at Wave ${MIN_BLOOM_WAVE}.`}</span>
+        ${canBloom ? (bloomConfirming ? `
+          <div class="bloom-confirm-box">
+            <button class="bloom-btn" data-bloom-confirm>Yes, Bloom Anew (+${seedsPreview} Seeds)</button>
+            <button class="bloom-btn" data-bloom-cancel>Cancel</button>
+          </div>
+        ` : `
+          <button class="bloom-btn" data-bloom-start>🌸 Bloom Anew (+${seedsPreview} Seeds)</button>
+        `) : ''}
+      </div>
+    </div>
+
+    <!-- Ancient Artifacts Section -->
+    <div class="utility-section-title">
+      <div>
+        <h2>🌟 Ancient Artifacts</h2>
+        <p>Cosmic relics purchased with Golden Seeds from Bloom Anew. Effects are permanent across all resets.</p>
+      </div>
+      <span>${Object.values(state.artifacts || {}).reduce((a, b) => a + b, 0)} total levels</span>
+    </div>
+    <div class="relics-grid">
+      ${ARTIFACTS.map(art => {
+        const level = state.artifacts[art.id] || 0;
+        const cost = artifactCost(art, level);
+        const canAfford = (state.goldenSeeds || 0) >= cost;
+        const bonusText = art.id === 'sunlight_crystal' ? `+${level * 15}% Combat Power`
+          : art.id === 'fertile_soil' ? `+${level * 20}% Tap & LPS Harvest`
+          : art.id === 'eternal_root' ? `+${level * 25}% Party Max HP`
+          : art.id === 'golden_can' ? `+${level * 25}% Ult Charge Rate`
+          : `+${level * 15}% Wave Leaves`;
+        return `
+          <article class="relic-card">
+            <div class="relic-top">
+              <span class="relic-icon">${art.emoji}</span>
+              <span class="relic-level">LVL ${level}</span>
+            </div>
+            <h3>${art.name}</h3>
+            <p>${art.desc}</p>
+            <div class="relic-bonus">
+              <span>CURRENT BONUS</span>
+              <strong>${bonusText}</strong>
+            </div>
+            <button class="relic-btn" data-artifact="${art.id}" ${canAfford ? '' : 'disabled'}>
+              Upgrade <span>🌟 ${fmt(cost)}</span>
+            </button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+
+    <!-- Leaf Boosts Section -->
+    <div class="utility-section-title" style="margin-top: 36px">
+      <div>
+        <h2>🌿 Permanent Leaf Boosts</h2>
+        <p>Spend Leaf Points to improve base garden harvest, damage, and health.</p>
+      </div>
+    </div>
+    <div class="boost-grid">
+      ${BOOSTS.map(boost => {
+        const level = state.boosts[boost.id];
+        const maxed = level >= 20;
+        const value = boost.id === 'vitality' ? `+${level * 40} HP` : `+${Math.round(level * (boost.id === 'harvest' ? 25 : 20))}%`;
+        return `
+          <article class="boost-card ${boost.color}">
+            <span class="boost-art">${boost.emoji}</span>
+            <span class="boost-level">LVL ${level} / 20</span>
+            <h3>${boost.name}</h3>
+            <p>${boost.desc}</p>
+            <div class="boost-effect">
+              <span>CURRENT BONUS</span>
+              <strong>${value}</strong>
+            </div>
+            <button class="primary-button" data-boost="${boost.id}" ${maxed || state.leaves < getBoostCost(boost) ? 'disabled' : ''}>
+              ${maxed ? 'Max level' : `Upgrade <span>🍃 ${fmt(getBoostCost(boost))}</span>`}
+            </button>
+          </article>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
+
 let resetPending = false;
 function renderSettings() {
-  document.querySelector('#settings-content').innerHTML = `<div class="settings-grid"><section class="settings-card"><span class="section-kicker">APPEARANCE</span><h2>Display & motion</h2><p>Set the pace that feels comfortable for you.</p><div class="setting-row"><div><strong>Character animations</strong><small>Gentle movement and battle effects</small></div><button class="toggle ${state.settings.motion ? 'on' : ''}" role="switch" aria-checked="${state.settings.motion}" data-setting="motion" aria-label="Character animations"><span></span></button></div><div class="setting-row"><div><strong>Floating harvest text</strong><small>Show Leaf Points above garden heroes</small></div><button class="toggle ${state.settings.floatingText ? 'on' : ''}" role="switch" aria-checked="${state.settings.floatingText}" data-setting="floatingText" aria-label="Floating harvest text"><span></span></button></div></section><section class="settings-card"><span class="section-kicker">PROGRESS</span><h2>Your save</h2><p>Your garden saves automatically in this browser.</p><div class="save-info">${icon('check', 19)} Local save is active</div><button class="settings-action" data-save>Save progress now ${icon('arrow', 16)}</button><div class="settings-divider"></div><h3>Start a new garden</h3><p>This clears your local progress and begins again with Sprout Knight.</p>${resetPending ? `<div class="reset-confirm"><button data-reset-confirm>Yes, reset everything</button><button data-reset-cancel>Cancel</button></div>` : `<button class="reset-button" data-reset>Reset progress</button>`}</section></div>`;
+  document.querySelector('#settings-content').innerHTML = `
+    <div class="settings-grid">
+      <section class="settings-card">
+        <span class="section-kicker">APPEARANCE & AUDIO</span>
+        <h2>Display & audio</h2>
+        <p>Set the pace and ambiance that feels comfortable for you.</p>
+        <div class="setting-row">
+          <div><strong>Character animations</strong><small>Gentle movement and battle effects</small></div>
+          <button class="toggle ${state.settings.motion ? 'on' : ''}" role="switch" aria-checked="${state.settings.motion}" data-setting="motion" aria-label="Character animations"><span></span></button>
+        </div>
+        <div class="setting-row">
+          <div><strong>Floating harvest text</strong><small>Show Leaf Points and tap crits above heroes</small></div>
+          <button class="toggle ${state.settings.floatingText ? 'on' : ''}" role="switch" aria-checked="${state.settings.floatingText}" data-setting="floatingText" aria-label="Floating harvest text"><span></span></button>
+        </div>
+        <div class="setting-row">
+          <div><strong>Sound effects</strong><small>Cozy synth melodies for harvests, attacks, and victories</small></div>
+          <button class="toggle ${state.settings.sound ? 'on' : ''}" role="switch" aria-checked="${state.settings.sound}" data-setting="sound" aria-label="Sound effects"><span></span></button>
+        </div>
+      </section>
+      <section class="settings-card">
+        <span class="section-kicker">PROGRESS</span>
+        <h2>Your save</h2>
+        <p>Your garden saves automatically in this browser.</p>
+        <div class="save-info">${icon('check', 19)} Local save is active</div>
+        <button class="settings-action" data-save>Save progress now ${icon('arrow', 16)}</button>
+        <div class="settings-divider"></div>
+        <h3>Start a new garden</h3>
+        <p>This clears your local progress and begins again with Sprout Knight.</p>
+        ${resetPending ? `<div class="reset-confirm"><button data-reset-confirm>Yes, reset everything</button><button data-reset-cancel>Cancel</button></div>` : `<button class="reset-button" data-reset>Reset progress</button>`}
+      </section>
+    </div>
+  `;
 }
 function showScreen(name, updateHistory = true) {
   if (!SCREENS.includes(name)) name = 'home';
@@ -311,6 +491,62 @@ function floatingHarvest() {
 app.addEventListener('click', (event) => {
   const screen = event.target.closest('[data-screen]');
   if (screen) { event.preventDefault(); showScreen(screen.dataset.screen); return; }
+
+  // Ultimate Skill
+  if (event.target.closest('#ult-btn')) {
+    if (canActivateUltimate(state)) {
+      activateUltimate(state);
+      playUlt();
+      visuals?.triggerUltimate();
+      renderBattleNumbers();
+      toast('☀️ Sunlight Burst unleashed! Healed party 40% & 2× Combat Power for 8s!');
+    }
+    return;
+  }
+
+  // Prestige: Bloom Anew
+  if (event.target.closest('[data-bloom-start]')) {
+    bloomConfirming = true;
+    renderUpgrades();
+    return;
+  }
+  if (event.target.closest('[data-bloom-cancel]')) {
+    bloomConfirming = false;
+    renderUpgrades();
+    return;
+  }
+  if (event.target.closest('[data-bloom-confirm]')) {
+    bloomConfirming = false;
+    if (canBloomAnew(state)) {
+      const seeds = bloomAnew(state);
+      playBloom();
+      save();
+      renderAll();
+      toast(`🌸 Bloomed Anew! You earned ${seeds} Golden Seeds!`);
+    }
+    return;
+  }
+
+  // Ancient Relics Upgrade
+  const artBtn = event.target.closest('[data-artifact]');
+  if (artBtn) {
+    const artId = artBtn.dataset.artifact;
+    const art = ARTIFACTS.find(a => a.id === artId);
+    if (art) {
+      const level = state.artifacts[artId] || 0;
+      const cost = artifactCost(art, level);
+      if ((state.goldenSeeds || 0) >= cost) {
+        state.goldenSeeds -= cost;
+        state.artifacts[artId] = level + 1;
+        playUpgrade();
+        save();
+        renderAll();
+        toast(`${art.name} upgraded to Level ${state.artifacts[artId]}!`);
+      }
+    }
+    return;
+  }
+
   const equip = event.target.closest('[data-equip]');
   if (equip) {
     const item = ACCESSORIES.find(entry => entry.id === equip.dataset.equip);
@@ -327,6 +563,7 @@ app.addEventListener('click', (event) => {
     state.leaves -= getUnitCost(unit);
     state.legion[unit.id]++;
     state.battle.partyHp += unit.hp;
+    playUpgrade();
     save(); renderAll(); toast(`${unit.name} joined your legion!`);
     return;
   }
@@ -337,6 +574,7 @@ app.addEventListener('click', (event) => {
     state.leaves -= getBoostCost(boost);
     state.boosts[boost.id]++;
     if (boost.id === 'vitality') state.battle.partyHp += 40;
+    playUpgrade();
     save(); renderAll(); toast(`${boost.name} reached level ${state.boosts[boost.id]}!`);
     return;
   }
@@ -362,7 +600,32 @@ app.addEventListener('click', (event) => {
   }
   const select = event.target.closest('[data-select]');
   if (select) {
-    selectedHero = select.dataset.select;
+    const heroId = select.dataset.select;
+    selectedHero = heroId;
+
+    // Active tap harvest if tapping on an unlocked hero plot
+    const hero = HEROES.find(h => h.id === heroId);
+    if (hero && state.heroes[heroId] && select.classList.contains('hero-plot')) {
+      const { amount, isCrit } = tapHarvestReward(hero, state.heroes[heroId], state);
+      state.leaves += amount;
+      state.totalHarvested += amount;
+      renderNumbers();
+      visuals?.tapHero(heroId);
+      if (isCrit) playCritTap();
+      else playTap();
+
+      if (state.settings.floatingText) {
+        const span = document.createElement('span');
+        span.className = `floating-harvest ${isCrit ? 'crit-tap' : ''}`;
+        span.textContent = `+${fmt(amount)} 🍃${isCrit ? ' 💥 CRIT!' : ''}`;
+        span.style.left = `${30 + Math.random() * 30}%`;
+        select.append(span);
+        const cleanup = () => span.remove();
+        span.addEventListener('animationend', cleanup, { once: true });
+        setTimeout(cleanup, 1200);
+      }
+    }
+
     if (activeTab !== 'heroes') {
       activeTab = 'heroes';
       document.querySelectorAll('.tab').forEach(button => { const on = button.dataset.tab === 'heroes'; button.classList.toggle('active', on); button.setAttribute('aria-selected', String(on)); });
@@ -375,19 +638,25 @@ app.addEventListener('click', (event) => {
     const hero = HEROES.find(h => h.id === upgrade.dataset.upgrade);
     const cost = getUpgradeCost(hero);
     if (state.leaves < cost) return;
-    state.leaves -= cost; state.heroes[hero.id]++; state.battle.partyHp += 10; save(); renderAll(); toast(`${hero.name} reached level ${state.heroes[hero.id]}!`);
+    state.leaves -= cost; state.heroes[hero.id]++; state.battle.partyHp += 10;
+    playUpgrade();
+    save(); renderAll(); toast(`${hero.name} reached level ${state.heroes[hero.id]}!`);
     return;
   }
   const recruit = event.target.closest('[data-recruit]');
   if (recruit) {
     const hero = HEROES.find(h => h.id === recruit.dataset.recruit);
     if (hero.plot >= state.plots || state.heroes[hero.id] || state.leaves < hero.unlockCost) return;
-    state.leaves -= hero.unlockCost; state.heroes[hero.id] = 1; state.battle.partyHp += 10; save(); renderAll(); toast(`${hero.name} joined your garden!`);
+    state.leaves -= hero.unlockCost; state.heroes[hero.id] = 1; state.battle.partyHp += 10;
+    playUpgrade();
+    save(); renderAll(); toast(`${hero.name} joined your garden!`);
     return;
   }
   if (event.target.closest('[data-plot]')) {
     if (state.plots >= HEROES.length || state.leaves < getNextPlotCost()) return;
-    state.leaves -= getNextPlotCost(); state.plots++; save(); renderAll(); toast(`Plot ${state.plots} is ready to grow!`);
+    state.leaves -= getNextPlotCost(); state.plots++;
+    playUpgrade();
+    save(); renderAll(); toast(`Plot ${state.plots} is ready to grow!`);
   }
 });
 
@@ -402,6 +671,10 @@ function tick() {
   const waveBefore = state.battle.wave;
   advanceCombat(state, dt);
   renderNumbers();
+  if (state.battle.wave !== waveBefore) {
+    playVictory();
+    if (activeScreen === 'upgrades') renderUpgrades();
+  }
   if (activeScreen === 'combat') {
     renderBattleNumbers();
     if (state.battle.wave !== waveBefore) renderCombat();
@@ -410,10 +683,20 @@ function tick() {
   }
   const balance = document.querySelector('#upgrade-leaves');
   if (balance && activeScreen === 'upgrades') balance.textContent = fmt(state.leaves);
+  const seedsBalance = document.querySelector('#upgrade-seeds');
+  if (seedsBalance && activeScreen === 'upgrades') seedsBalance.textContent = fmt(state.goldenSeeds || 0);
+
   if (activeScreen === 'upgrades') {
     document.querySelectorAll('[data-boost]').forEach(button => {
       const boost = BOOSTS.find(entry => entry.id === button.dataset.boost);
       button.disabled = state.boosts[boost.id] >= 20 || state.leaves < getBoostCost(boost);
+    });
+    document.querySelectorAll('[data-artifact]').forEach(button => {
+      const art = ARTIFACTS.find(entry => entry.id === button.dataset.artifact);
+      if (art) {
+        const level = state.artifacts[art.id] || 0;
+        button.disabled = (state.goldenSeeds || 0) < artifactCost(art, level);
+      }
     });
   }
   if (activeScreen === 'garden') {

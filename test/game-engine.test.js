@@ -5,6 +5,8 @@ import {
   PLOT_COSTS,
   UNITS,
   ACCESSORIES,
+  ARTIFACTS,
+  BIOMES,
   DEFAULT_STATE,
   lps,
   combatPower,
@@ -15,10 +17,18 @@ import {
   upgradeCost,
   unitCost,
   boostCost,
+  artifactCost,
   nextPlotCost,
   advanceCombat,
   sanitizeSave,
   troopCount,
+  biomeForWave,
+  tapHarvestReward,
+  canActivateUltimate,
+  activateUltimate,
+  canBloomAnew,
+  calculateGoldenSeeds,
+  bloomAnew,
 } from '../src/game-engine.js';
 
 describe('Game Engine - Math & Formulas', () => {
@@ -49,14 +59,15 @@ describe('Game Engine - Math & Formulas', () => {
     assert.equal(Math.round(combatPower(state) * 100) / 100, 9.66);
   });
 
-  it('calculates party maximum HP correctly with oak_badge', () => {
+  it('calculates party maximum HP correctly with oak_badge and eternal_root artifact', () => {
     const state = {
       heroes: { sprout: 2 }, // 100 + 2*10 = 120
       legion: { scout: 5, guardian: 1 }, // scout: 5*4=20, guardian: 1*20=20 -> +40 = 160
       boosts: { vitality: 2 }, // 2*40 = +80 = 240
-      equipped: 'oak_badge', // +30 = 270
+      artifacts: { eternal_root: 1 }, // +60 = 300
+      equipped: 'oak_badge', // +30 = 330
     };
-    assert.equal(partyMaxHp(state), 270);
+    assert.equal(partyMaxHp(state), 330);
   });
 
   it('calculates upgrade costs with exponential scaling', () => {
@@ -70,6 +81,13 @@ describe('Game Engine - Math & Formulas', () => {
     assert.equal(unitCost(scout, 3), Math.ceil(25 * Math.pow(1.16, 3)));
   });
 
+  it('calculates artifact costs with level scaling', () => {
+    const crystal = ARTIFACTS[0];
+    assert.equal(artifactCost(crystal, 0), 1);
+    assert.equal(artifactCost(crystal, 1), Math.ceil(1 * 1.85));
+    assert.equal(artifactCost(crystal, 3), Math.ceil(1 * Math.pow(1.85, 3)));
+  });
+
   it('calculates plot costs accurately', () => {
     assert.equal(nextPlotCost(0), 0);
     assert.equal(nextPlotCost(1), 30);
@@ -77,14 +95,126 @@ describe('Game Engine - Math & Formulas', () => {
     assert.equal(nextPlotCost(6), Infinity);
   });
 
-  it('calculates wave rewards with boss multiplier and sunstone', () => {
+  it('calculates wave rewards with boss multiplier, sunstone, and clover artifact', () => {
     // Normal wave 1
-    assert.equal(waveReward(1, null), 8);
+    assert.equal(waveReward(1, null, null), 8);
     // Boss wave 5
     const regularWave5 = 8 * Math.pow(1.23, 4) * 2;
-    assert.equal(waveReward(5, null), Math.ceil(regularWave5));
-    // Wave 1 with Sunstone (+25%)
-    assert.equal(waveReward(1, 'sunstone'), 10);
+    assert.equal(waveReward(5, null, null), Math.ceil(regularWave5));
+    // Wave 1 with Sunstone (+25%) and Clover (+20%)
+    const state = { artifacts: { clover_fortune: 1 } };
+    assert.equal(waveReward(1, 'sunstone', state), Math.ceil(8 * 1.25 * 1.2));
+  });
+});
+
+describe('Game Engine - Active Tapping & Ultimate Skill (Phase 1 & 2)', () => {
+  it('calculates tap harvest rewards correctly', () => {
+    const sprout = HEROES[0];
+    const reward = tapHarvestReward(sprout, 2, null);
+    assert.ok(reward.amount >= 1);
+    assert.equal(typeof reward.isCrit, 'boolean');
+  });
+
+  it('charges energy and activates Ultimate skill (Sunlight Burst)', () => {
+    const state = {
+      heroes: { sprout: 5 },
+      legion: { scout: 0, archer: 0, guardian: 0 },
+      boosts: { harvest: 0, power: 0, vitality: 0 },
+      artifacts: { sunlight_crystal: 0, fertile_soil: 0, eternal_root: 0, golden_can: 1, clover_fortune: 0 },
+      equipped: null,
+      leaves: 0,
+      totalHarvested: 0,
+      battle: {
+        wave: 1,
+        enemyHp: 24,
+        partyHp: 80,
+        wins: 0,
+        earned: 0,
+        energy: 90,
+        ultActiveUntil: 0,
+      },
+    };
+
+    // Advance 5 seconds to charge energy over 100%
+    advanceCombat(state, 5);
+    assert.ok(state.battle.energy >= 100);
+    assert.ok(canActivateUltimate(state));
+
+    const basePower = combatPower(state, 1000);
+    const result = activateUltimate(state, 1000);
+    assert.ok(result);
+    assert.equal(state.battle.energy, 0);
+    assert.equal(state.battle.ultActiveUntil, 1000 + 8000);
+
+    // Combat power should be doubled during Ult (2x)
+    const ultPower = combatPower(state, 2000);
+    assert.equal(ultPower, basePower * 2);
+
+    // After 8 seconds, combat power returns to normal
+    const normalPower = combatPower(state, 10000);
+    assert.equal(normalPower, basePower);
+  });
+});
+
+describe('Game Engine - Prestige / Bloom Anew & Biomes (Phase 3)', () => {
+  it('checks Bloom Anew requirement correctly', () => {
+    const earlyState = { battle: { wave: 10, wins: 5 } };
+    assert.equal(canBloomAnew(earlyState), false);
+
+    const readyState = { battle: { wave: 30, wins: 30 }, totalHarvested: 100000 };
+    assert.equal(canBloomAnew(readyState), true);
+    const seeds = calculateGoldenSeeds(readyState);
+    assert.ok(seeds >= 1);
+  });
+
+  it('executes Bloom Anew reset cleanly and retains artifacts and seeds', () => {
+    const state = {
+      leaves: 50000,
+      totalHarvested: 200000,
+      plots: 4,
+      heroes: { sprout: 25, rose: 15 },
+      legion: { scout: 10, archer: 5, guardian: 2 },
+      boosts: { harvest: 5, power: 5, vitality: 5 },
+      artifacts: { sunlight_crystal: 2, fertile_soil: 1 },
+      goldenSeeds: 3,
+      bloomCount: 1,
+      equipped: 'leaf_charm',
+      settings: { motion: true, floatingText: true, sound: true },
+      battle: {
+        wave: 45,
+        enemyHp: 1000,
+        partyHp: 200,
+        wins: 44,
+        earned: 15000,
+        energy: 50,
+        ultActiveUntil: 0,
+      },
+    };
+
+    const seedsGained = bloomAnew(state);
+    assert.ok(seedsGained > 0);
+    assert.equal(state.goldenSeeds, 3 + seedsGained);
+    assert.equal(state.bloomCount, 2);
+    // Progression reset
+    assert.equal(state.leaves, 0);
+    assert.equal(state.plots, 1);
+    assert.deepEqual(state.heroes, { sprout: 1 });
+    assert.equal(state.battle.wave, 1);
+    assert.equal(state.battle.wins, 0);
+    // Artifacts & equipment retained
+    assert.equal(state.artifacts.sunlight_crystal, 2);
+    assert.equal(state.equipped, 'leaf_charm');
+  });
+
+  it('selects correct Biome based on current Wave', () => {
+    assert.equal(biomeForWave(1).id, 'glade');
+    assert.equal(biomeForWave(25).id, 'glade');
+    assert.equal(biomeForWave(26).id, 'thicket');
+    assert.equal(biomeForWave(50).id, 'thicket');
+    assert.equal(biomeForWave(51).id, 'swamp');
+    assert.equal(biomeForWave(76).id, 'redwood');
+    assert.equal(biomeForWave(105).id, 'twilight');
+    assert.equal(biomeForWave(150).id, 'twilight');
   });
 });
 
@@ -94,6 +224,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
       heroes: { sprout: 10 }, // combatPower = 10 * 1 * 3 = 30
       legion: { scout: 0, archer: 0, guardian: 0 },
       boosts: { harvest: 0, power: 0, vitality: 0 },
+      artifacts: {},
       equipped: null,
       leaves: 0,
       totalHarvested: 0,
@@ -103,6 +234,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
         partyHp: 200,
         wins: 0,
         earned: 0,
+        energy: 0,
       },
     };
 
@@ -120,6 +252,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
       heroes: { sprout: 1 }, // power = 3
       legion: { scout: 0, archer: 0, guardian: 0 },
       boosts: { harvest: 0, power: 0, vitality: 0 },
+      artifacts: {},
       equipped: null,
       leaves: 0,
       totalHarvested: 0,
@@ -129,6 +262,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
         partyHp: 110,
         wins: 0,
         earned: 0,
+        energy: 0,
       },
     };
 
@@ -149,6 +283,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
       heroes: { sprout: 100000 }, // High level
       legion: { scout: 0, archer: 0, guardian: 0 },
       boosts: { harvest: 0, power: 20, vitality: 20 },
+      artifacts: {},
       equipped: null,
       leaves: 0,
       totalHarvested: 0,
@@ -158,6 +293,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
         partyHp: 1e15, // High HP to survive wave 150 damage
         wins: 150,
         earned: 50000,
+        energy: 0,
       },
     };
 
@@ -171,6 +307,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
       heroes: { sprout: 1 },
       legion: { scout: 0, archer: 0, guardian: 0 },
       boosts: { harvest: 0, power: 0, vitality: 0 },
+      artifacts: {},
       equipped: null,
       leaves: 10,
       totalHarvested: 10,
@@ -180,6 +317,7 @@ describe('Game Engine - Combat Simulation & Progression', () => {
         partyHp: -50,
         wins: 0,
         earned: 0,
+        energy: NaN,
       },
     };
 
@@ -200,17 +338,21 @@ describe('Game Engine - Save Sanitization & Corruption Resistance', () => {
     const state1 = sanitizeSave(null);
     assert.equal(state1.plots, 1);
     assert.equal(state1.heroes.sprout, 1);
+    assert.equal(state1.goldenSeeds, 0);
 
     const state2 = sanitizeSave('not-an-object');
     assert.equal(state2.plots, 1);
     assert.equal(state2.heroes.sprout, 1);
+    assert.equal(state2.goldenSeeds, 0);
   });
 
-  it('cleanses NaN, Infinity, negative values, and out-of-range fields', () => {
+  it('cleanses NaN, Infinity, negative values, and preserves artifacts and seeds', () => {
     const corrupt = {
       leaves: NaN,
       totalHarvested: -500,
       plots: 99, // Should clamp to 6
+      goldenSeeds: NaN,
+      bloomCount: -2,
       heroes: {
         sprout: -5, // Should clamp to 1
         rose: Infinity, // Should clamp to safe level
@@ -220,9 +362,14 @@ describe('Game Engine - Save Sanitization & Corruption Resistance', () => {
         enemyHp: 'not a number',
         partyHp: -10,
         wins: NaN,
+        energy: 150, // Should clamp to 100
       },
       boosts: {
         harvest: 100, // Max level is 20
+      },
+      artifacts: {
+        sunlight_crystal: 5,
+        invalid_artifact: 999,
       },
       equipped: 'sunstone', // Only unlocked at 15 wins; with 0 wins it should be unequipped
     };
@@ -232,13 +379,18 @@ describe('Game Engine - Save Sanitization & Corruption Resistance', () => {
     assert.equal(clean.leaves, 0);
     assert.equal(clean.totalHarvested, 0);
     assert.equal(clean.plots, 6);
+    assert.equal(clean.goldenSeeds, 0);
+    assert.equal(clean.bloomCount, 0);
     assert.equal(clean.heroes.sprout, 1);
     assert.ok(clean.heroes.rose <= 100000);
     assert.equal(clean.battle.wave, 150);
     assert.ok(clean.battle.enemyHp > 0);
     assert.ok(clean.battle.partyHp > 0);
     assert.equal(clean.battle.wins, 0);
+    assert.equal(clean.battle.energy, 100);
     assert.equal(clean.boosts.harvest, 20);
+    assert.equal(clean.artifacts.sunlight_crystal, 5);
+    assert.equal(clean.artifacts.invalid_artifact, undefined);
     assert.equal(clean.equipped, null); // Locked accessory filtered out
   });
 });

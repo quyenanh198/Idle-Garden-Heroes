@@ -139,9 +139,9 @@ Idle Garden Hero/
   ✔ returns valid default state for null or invalid JSON objects (0.2ms)
   ✔ cleanses NaN, Infinity, negative values, and out-of-range fields (0.3ms)
 ✔ Game Engine - Save Sanitization & Corruption Resistance (1.8ms)
-ℹ tests 13
-ℹ suites 3
-ℹ pass 13
+ℹ tests 19
+ℹ suites 5
+ℹ pass 19
 ℹ fail 0
 ```
 
@@ -149,22 +149,36 @@ Idle Garden Hero/
 ```
 vite v7.3.6 building client environment for production...
 transforming...
-✓ 11 modules transformed.
+✓ 12 modules transformed.
 rendering chunks...
 computing gzip size...
 dist/index.html                      0.87 kB │ gzip:   0.46 kB
-dist/assets/index-wnhCUp9y.css      64.36 kB │ gzip:  15.51 kB
-dist/assets/index-_i4RVy9A.js       42.60 kB │ gzip:  13.45 kB
-dist/assets/visuals-CKeKXFrl.js  1,218.07 kB │ gzip: 336.05 kB
-✓ built in 4.40s
+dist/assets/index-CVY-DKcl.css      70.03 kB │ gzip:  16.67 kB
+dist/assets/index-DDHFe-j4.js       57.07 kB │ gzip:  17.50 kB
+dist/assets/visuals-EEFPrtIg.js  1,221.12 kB │ gzip: 337.07 kB
+✓ built in 4.33s
 ```
 
 ---
 
-## 5. Conclusion & Recommendations
+## 5. Gameplay Evolution (Phases 1 to 3 Implemented)
 
-The Idle Garden Hero project is now hardened, robust against data corruption, free of DOM memory leaks and layout thrashing, and backed by a comprehensive unit test suite in CI.
+### Phase 1: Dynamic Tactile Interaction & Combat Feedback
+- **Active Tap Harvesting:** Players can actively tap unlocked garden plots to trigger instant leaf harvests with a 12% critical harvest chance (3× payout), visual squash/stretch and heart/leaf particle bursts, and floating damage/leaf numbers.
+- **Combat Floating Damage Numbers:** Both hero attacks and enemy counter-attacks spawn floating damage popups (normal, critical hits in gold, and enemy damage in red) directly above combatants.
+- **Enemy Attack Animations:** Enemies lunge and shoot spore projectiles that bounce back party heroes with hit sound effects.
 
-Future recommended features:
-- **Audio / SFX:** Add gentle ambient glade sound effects with a mute toggle in Settings.
-- **Prestige / Rebirth System:** Provide a "Garden Metamorphosis" prestige option after wave 100 to increase long-term replayability.
+### Phase 2: Web Audio Synthesizer & Sunlight Burst Ultimate
+- **Cozy Synthesized SFX (`src/audio.js`):** Built-in zero-dependency Web Audio synthesizer generating unique frequencies for taps, critical taps, hero attacks per plant type (Rose Mage chime, Oak Sentinel thud, Sunflower Sage melody), enemy attacks, wave victories, upgrades, and prestige resets. Seamless audio resumption without autoplay policy blocks.
+- **Sunlight Burst Ultimate Skill:** Energy accumulates passively (4%/sec) and on wave victories (+5%). At 100% charge, gardeners can unleash **Sunlight Burst** to heal the party by 40% max HP and double combat power for 8 seconds, accompanied by a radiant sunbeam flash.
+- **Audio Control:** Settings screen includes an instant toggle for sound effects with local storage persistence.
+
+### Phase 3: "Bloom Anew" Prestige System, Ancient Relics & Biomes
+- **Prestige Mechanism (`bloomAnew`):** Upon reaching Wave 25+, gardeners can transcend the glade to harvest **Golden Seeds** based on wave depth, total victories, and lifetime leaves.
+- **Ancient Artifacts:** 5 permanent cosmic relics purchased with Golden Seeds that persist through all prestige resets:
+  1. *Sunlight Crystal:* +15% Combat Power per level.
+  2. *Fertile Soil:* +20% Tap Harvest & LPS per level.
+  3. *Eternal Root:* +25% Party Max HP per level.
+  4. *Golden Dew Bucket:* +25% Ultimate Energy Charge Rate per level.
+  5. *Clover of Fortune:* +15% Wave Reward leaves per level.
+- **Wave Biomes (`biomeForWave`):** Dynamically transitions across 5 themed biomes (Whispering Woods, Sunlit Meadow, Misty Hollow, Ancient Glade, and Celestial Bramble) up to Wave 150.

@@ -23,3 +23,74 @@
 .home-summary{grid-template-columns:repeat(4,1fr)}.legion-intro-card{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 25px;background:linear-gradient(100deg,#eaf5e2,#fbf9e8);border:1px solid #d6e7cb;border-radius:18px;margin-bottom:16px}.legion-intro-card h3{font:600 24px Fredoka,sans-serif;color:#35603d;margin:5px 0}.legion-intro-card p{color:#8ea387;font-size:11px}.legion-intro-card>span{white-space:nowrap;padding:10px 13px;border-radius:20px;background:#fffefa;color:#5b9058;font-size:11px;font-weight:800}.unit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.unit-card{display:flex;flex-direction:column;min-height:275px;background:#fffefa;border:1px solid #e0e8d8;border-radius:18px;padding:19px;box-shadow:0 3px 0 #edf0e6}.unit-card.unit-locked{opacity:.65}.unit-top{display:flex;align-items:start;justify-content:space-between}.unit-avatar{display:grid;place-items:center;width:56px;height:56px;background:#edf5e6;border-radius:15px;font-size:30px}.unit-count{font-size:9px;color:#89a882;font-weight:800;letter-spacing:1px}.unit-card h3{font:600 20px Fredoka,sans-serif;color:#365d3b;margin:13px 0 3px}.unit-card p{font-size:11px;color:#9aaa93}.unit-stats{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 auto}.unit-stats span{background:#f2f6eb;border-radius:7px;padding:6px;font-size:9px;font-weight:800;color:#6e9867}.unit-card .primary-button{margin-top:16px}.roster-row .unit-avatar{width:37px;height:37px;font-size:21px;border-radius:11px}
 @media(max-width:950px){.home-summary{grid-template-columns:repeat(2,1fr)}.unit-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.home-summary{grid-template-columns:repeat(2,1fr)}.unit-grid{grid-template-columns:1fr}.unit-card{min-height:0}.legion-intro-card{padding:16px;gap:8px}.legion-intro-card h3{font-size:19px}.legion-intro-card>span{font-size:9px;padding:7px}.unit-stats{margin-bottom:2px}}
+
+/* --- Phases 1-3: Combat Ult, Biomes, Prestige Bloom & Ancient Relics --- */
+.floating-harvest.crit-tap{color:#d97706;font-size:16px;font-weight:800;filter:drop-shadow(0 2px 5px rgba(217,119,6,0.4));z-index:10}
+
+/* Biome kicker */
+.biome-desc{font-size:9px;color:#7ca074;margin-left:6px;font-weight:600;opacity:0.85;text-transform:none}
+
+/* Ultimate skill bar & button */
+.ult-row{display:flex;align-items:center;gap:14px;padding:0 8% 20px}
+.ult-button{display:flex;align-items:center;gap:10px;padding:9px 18px;border-radius:14px;background:#e9f0df;border:2px solid #cedec2;color:#7a9470;font-size:12px;font-weight:800;transition:all .25s ease}
+.ult-button:not(:disabled){background:linear-gradient(135deg,#fef08a 0%,#f59e0b 100%);border-color:#d97706;color:#78350f;box-shadow:0 0 16px #f59e0b66,0 3px 0 #b45309;cursor:pointer;animation:ult-glow 1.4s ease-in-out infinite alternate}
+.ult-button.active{background:linear-gradient(135deg,#fde047 0%,#ea580c 100%);border-color:#c2410c;color:#fff;box-shadow:0 0 20px #ea580c88;animation:ult-active .7s ease-in-out infinite alternate}
+.ult-icon{font-size:22px}
+.ult-text{display:flex;flex-direction:column;text-align:left}
+.ult-text strong{font:600 13px Fredoka,sans-serif;line-height:1.1}
+.ult-text small{font-size:9px;opacity:0.85}
+.ult-tag{font-size:9px;font-weight:800;background:#ffffff55;border-radius:6px;padding:3px 6px;margin-left:auto}
+.ult-progress{flex:1;height:12px;background:#d8e6d0;border-radius:20px;overflow:hidden;border:2px solid #fff}
+.ult-fill{height:100%;width:0%;background:linear-gradient(90deg,#fcd34d,#f59e0b);border-radius:20px;transition:width .2s ease}
+
+@keyframes ult-glow{0%{transform:scale(1);box-shadow:0 0 10px #f59e0b44,0 3px 0 #b45309}100%{transform:scale(1.03);box-shadow:0 0 20px #f59e0b88,0 4px 0 #b45309}}
+@keyframes ult-active{0%{box-shadow:0 0 12px #ea580c66}100%{box-shadow:0 0 24px #ea580caa}}
+
+/* Upgrades Dual Currencies & Subtabs */
+.upgrades-currency-bar{display:flex;gap:14px;margin-bottom:20px}
+.currency-badge{display:flex;align-items:center;gap:8px;padding:12px 18px;border-radius:15px;background:#315c39;color:#fff;font:600 16px Fredoka,sans-serif;box-shadow:0 3px 0 #234c31}
+.currency-badge small{font-size:10px;color:#c9e5ad;font-family:'DM Sans',sans-serif;font-weight:700}
+.currency-badge.seeds{background:#7c5222;box-shadow:0 3px 0 #5c3b16}
+.currency-badge.seeds small{color:#fde68a}
+
+/* Bloom Anew Prestige Banner */
+.bloom-card{background:linear-gradient(135deg,#fefce8 0%,#fef08a22 50%,#fef9c3 100%);border:2px solid #fde047;border-radius:22px;padding:24px 28px;margin-bottom:24px;box-shadow:0 5px 0 #facc15}
+.bloom-card.locked{background:#f4f5ee;border-color:#dbe2d4;box-shadow:0 3px 0 #cfd8c7;opacity:0.85}
+.bloom-header{display:flex;align-items:start;justify-content:space-between;gap:16px}
+.bloom-header-copy h3{font:600 24px Fredoka,sans-serif;color:#854d0e;margin:4px 0}
+.bloom-card.locked .bloom-header-copy h3{color:#5c6b55}
+.bloom-header-copy p{font-size:12px;color:#a16207;max-width:540px;line-height:1.5}
+.bloom-card.locked .bloom-header-copy p{color:#7a8a72}
+.bloom-reward-badge{display:flex;flex-direction:column;align-items:center;padding:10px 16px;background:#fffbeb;border:2px solid #fcd34d;border-radius:15px;color:#b45309}
+.bloom-reward-badge strong{font:600 22px Fredoka,sans-serif}
+.bloom-reward-badge small{font-size:9px;font-weight:800;letter-spacing:1px}
+.bloom-action-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;padding-top:16px;border-top:1px solid #fef08a}
+.bloom-card.locked .bloom-action-row{border-color:#e2e8da}
+.bloom-note{font-size:11px;color:#854d0e;font-weight:600}
+.bloom-card.locked .bloom-note{color:#718269}
+.bloom-btn{display:flex;align-items:center;gap:8px;padding:12px 22px;border-radius:12px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:1px solid #b45309;font-size:13px;font-weight:800;box-shadow:0 4px 0 #92400e;transition:all .2s ease}
+.bloom-btn:hover{transform:translateY(-2px);background:linear-gradient(135deg,#fbbf24,#f59e0b)}
+.bloom-confirm-box{display:flex;gap:10px}
+.bloom-confirm-box button:first-child{background:#dc2626;border-color:#991b1b;color:#fff;box-shadow:0 4px 0 #7f1d1d}
+.bloom-confirm-box button:last-child{background:#f3f4f6;border-color:#d1d5db;color:#374151;box-shadow:0 4px 0 #9ca3af}
+
+/* Ancient Artifacts Grid */
+.relics-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:15px;margin-top:14px}
+.relic-card{position:relative;display:flex;flex-direction:column;background:#fffdf8;border:1px solid #fae8b2;border-radius:20px;padding:20px;box-shadow:0 4px 0 #f5df9a}
+.relic-top{display:flex;align-items:start;justify-content:space-between;margin-bottom:12px}
+.relic-icon{display:grid;place-items:center;width:52px;height:52px;border-radius:15px;background:#fef3c7;font-size:28px}
+.relic-level{font-size:10px;font-weight:800;color:#b45309;background:#fef9c3;border:1px solid #fde047;border-radius:20px;padding:4px 9px}
+.relic-card h3{font:600 18px Fredoka,sans-serif;color:#451a03;margin-bottom:4px}
+.relic-card p{font-size:11px;color:#78350f;opacity:0.85;margin-bottom:14px;flex:1}
+.relic-bonus{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#fffbeb;border-radius:10px;margin-bottom:14px;font-size:11px;font-weight:700;color:#92400e}
+.relic-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;height:38px;background:#d97706;border:1px solid #b45309;border-radius:10px;color:#fff;font-size:12px;font-weight:800;box-shadow:0 3px 0 #92400e;transition:all .18s ease}
+.relic-btn:hover:not(:disabled){background:#f59e0b;transform:translateY(-2px)}
+.relic-btn:disabled{opacity:0.45;box-shadow:none;cursor:not-allowed}
+
+@media(max-width:650px){
+  .ult-row{flex-direction:column;align-items:stretch;gap:8px;padding:0 14px 15px}
+  .bloom-header{flex-direction:column}
+  .bloom-action-row{flex-direction:column;align-items:stretch}
+  .bloom-btn{justify-content:center}
+  .relics-grid{grid-template-columns:1fr}
+}

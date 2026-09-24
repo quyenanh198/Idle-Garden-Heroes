@@ -37,6 +37,22 @@ export const ACCESSORIES = [
   { id: 'sunstone', name: 'Sunstone', emoji: '☀️', desc: 'A warm reward for brave heroes.', bonus: '+25% battle rewards', unlockAt: 15 },
 ];
 
+export const ARTIFACTS = [
+  { id: 'sunlight_crystal', name: 'Sunlight Crystal', emoji: '💎', desc: '+15% legion damage per level.', baseCost: 1, color: 'amber' },
+  { id: 'fertile_soil', name: 'Fertile Soil', emoji: '🌱', desc: '+20% Leaf Points generation per level.', baseCost: 1, color: 'green' },
+  { id: 'eternal_root', name: 'Eternal Root', emoji: '🌳', desc: '+60 Party Max HP per level.', baseCost: 1, color: 'teal' },
+  { id: 'golden_can', name: 'Golden Dew Bucket', emoji: '✨', desc: '+25% Sunlight energy charge rate.', baseCost: 2, color: 'yellow' },
+  { id: 'clover_fortune', name: 'Clover of Fortune', emoji: '🍀', desc: '+20% battle leaf rewards per level.', baseCost: 2, color: 'pink' },
+];
+
+export const BIOMES = [
+  { id: 'glade', name: 'Whispering Glade', minWave: 1, maxWave: 25, emoji: '🌼', tint: 'glade', ambientColor: 0x91c96c, kicker: 'SUNLIT MEADOWS', desc: 'Gentle morning breezes and vibrant blooms.' },
+  { id: 'thicket', name: 'Thorny Thicket', minWave: 26, maxWave: 50, emoji: '🌵', tint: 'thicket', ambientColor: 0xd4a359, kicker: 'PRICKLY WOODS', desc: 'Amber foliage tangled with stubborn roots.' },
+  { id: 'swamp', name: 'Misty Swamp', minWave: 51, maxWave: 75, emoji: '🐸', tint: 'swamp', ambientColor: 0x68b39c, kicker: 'EMERALD WATERS', desc: 'Cool luminous mist and dancing fireflies.' },
+  { id: 'redwood', name: 'Ancient Redwood', minWave: 76, maxWave: 100, emoji: '🌲', tint: 'redwood', ambientColor: 0x8a7251, kicker: 'GIANT CANOPY', desc: 'Colossal trunks sheltering ancient secrets.' },
+  { id: 'twilight', name: 'Twilight Grove', minWave: 101, maxWave: 150, emoji: '🌙', tint: 'twilight', ambientColor: 0x9f83cf, kicker: 'STARRY GLADE', desc: 'Celestial moonlight and enchanted petals.' },
+];
+
 export const ENEMIES = [
   { name: 'Grumpy Mushroom', emoji: '🍄', type: 'Forest nuisance', tint: 'mushroom' },
   { name: 'Thorny Bramble', emoji: '🌵', type: 'Prickly troublemaker', tint: 'bramble' },
@@ -51,12 +67,17 @@ export const DEFAULT_STATE = {
   plots: 1,
   heroes: { sprout: 1 },
   legion: { scout: 0, archer: 0, guardian: 0 },
-  battle: { wave: 1, enemyHp: 24, partyHp: 110, wins: 0, earned: 0 },
+  battle: { wave: 1, enemyHp: 24, partyHp: 110, wins: 0, earned: 0, energy: 0, ultActiveUntil: 0 },
   boosts: { harvest: 0, power: 0, vitality: 0 },
+  artifacts: { sunlight_crystal: 0, fertile_soil: 0, eternal_root: 0, golden_can: 0, clover_fortune: 0 },
+  goldenSeeds: 0,
+  bloomCount: 0,
   equipped: null,
-  settings: { motion: true, floatingText: true },
+  settings: { motion: true, floatingText: true, sound: true },
   lastSaved: Date.now(),
 };
+
+export const MIN_BLOOM_WAVE = 25;
 
 export function troopCount(state) {
   return UNITS.reduce((sum, unit) => sum + (state?.legion?.[unit.id] || 0), 0);
@@ -67,17 +88,21 @@ export function lps(state) {
   const heroesHarvest = HEROES.reduce((sum, hero) => sum + (state.heroes?.[hero.id] || 0) * hero.baseLps, 0);
   const unitsHarvest = UNITS.reduce((sum, unit) => sum + (state.legion?.[unit.id] || 0) * unit.harvest, 0);
   const boostMult = 1 + (state.boosts?.harvest || 0) * 0.25;
+  const artifactMult = 1 + (state.artifacts?.fertile_soil || 0) * 0.20;
   const charmMult = state.equipped === 'leaf_charm' ? 1.1 : 1;
-  return (heroesHarvest + unitsHarvest) * boostMult * charmMult;
+  return (heroesHarvest + unitsHarvest) * boostMult * artifactMult * charmMult;
 }
 
-export function combatPower(state) {
+export function combatPower(state, now = Date.now()) {
   if (!state) return 0;
   const heroesPower = HEROES.reduce((sum, hero) => sum + (state.heroes?.[hero.id] || 0) * hero.baseLps * 3, 0);
   const unitsPower = UNITS.reduce((sum, unit) => sum + (state.legion?.[unit.id] || 0) * unit.power, 0);
   const boostMult = 1 + (state.boosts?.power || 0) * 0.2;
+  const artifactMult = 1 + (state.artifacts?.sunlight_crystal || 0) * 0.15;
   const broochMult = state.equipped === 'rose_brooch' ? 1.15 : 1;
-  return (heroesPower + unitsPower) * boostMult * broochMult;
+  const isUltActive = state.battle?.ultActiveUntil && now < state.battle.ultActiveUntil;
+  const ultMult = isUltActive ? 2.0 : 1.0;
+  return (heroesPower + unitsPower) * boostMult * artifactMult * broochMult * ultMult;
 }
 
 export function partyMaxHp(state) {
@@ -85,8 +110,9 @@ export function partyMaxHp(state) {
   const heroHp = Object.values(state.heroes || {}).reduce((sum, level) => sum + (Number.isFinite(level) ? level * 10 : 0), 0);
   const legionHp = UNITS.reduce((sum, unit) => sum + (state.legion?.[unit.id] || 0) * unit.hp, 0);
   const boostHp = (state.boosts?.vitality || 0) * 40;
+  const artifactHp = (state.artifacts?.eternal_root || 0) * 60;
   const badgeHp = state.equipped === 'oak_badge' ? 30 : 0;
-  return 100 + heroHp + legionHp + boostHp + badgeHp;
+  return 100 + heroHp + legionHp + boostHp + artifactHp + badgeHp;
 }
 
 export function enemyMaxHp(wave) {
@@ -99,10 +125,11 @@ export function enemyDamage(wave) {
   return 1.1 * Math.pow(1.18, safeWave - 1);
 }
 
-export function waveReward(wave, equipped = null) {
+export function waveReward(wave, equipped = null, state = null) {
   const safeWave = Math.max(1, Math.floor(wave) || 1);
   const multiplier = equipped === 'sunstone' ? 1.25 : 1;
-  return Math.ceil(8 * Math.pow(1.23, safeWave - 1) * (safeWave % 5 === 0 ? 2 : 1) * multiplier);
+  const artifactMult = 1 + (state?.artifacts?.clover_fortune || 0) * 0.20;
+  return Math.ceil(8 * Math.pow(1.23, safeWave - 1) * (safeWave % 5 === 0 ? 2 : 1) * multiplier * artifactMult);
 }
 
 export function upgradeCost(hero, currentLevel = 1) {
@@ -120,6 +147,11 @@ export function boostCost(boost, currentLevel = 0) {
   return Math.ceil(boost.baseCost * Math.pow(1.8, safeLevel));
 }
 
+export function artifactCost(artifact, currentLevel = 0) {
+  const safeLevel = Math.max(0, Math.floor(currentLevel) || 0);
+  return Math.ceil(artifact.baseCost * Math.pow(1.85, safeLevel));
+}
+
 export function nextPlotCost(plots) {
   return PLOT_COSTS[plots] ?? Infinity;
 }
@@ -129,7 +161,74 @@ export function enemyForWave(wave) {
   return ENEMIES[(safeWave - 1) % ENEMIES.length];
 }
 
-export function advanceCombat(state, seconds) {
+export function biomeForWave(wave) {
+  const safeWave = Math.max(1, Math.floor(wave) || 1);
+  return BIOMES.find((b) => safeWave >= b.minWave && safeWave <= b.maxWave) || BIOMES[BIOMES.length - 1];
+}
+
+export function tapHarvestReward(hero, currentLevel = 1, state = null) {
+  const level = Math.max(1, Math.floor(currentLevel) || 1);
+  const base = Math.max(1, Math.round(hero.baseLps * level * 0.5));
+  const boostMult = 1 + (state?.boosts?.harvest || 0) * 0.15;
+  const artifactMult = 1 + (state?.artifacts?.fertile_soil || 0) * 0.20;
+  const charmMult = state?.equipped === 'leaf_charm' ? 1.1 : 1;
+  const isCrit = Math.random() < 0.12;
+  const amount = Math.ceil(base * boostMult * artifactMult * charmMult * (isCrit ? 3 : 1));
+  return { amount, isCrit };
+}
+
+export function canActivateUltimate(state) {
+  return (state?.battle?.energy || 0) >= 100;
+}
+
+export function activateUltimate(state, now = Date.now()) {
+  if (!canActivateUltimate(state)) return false;
+  state.battle.energy = 0;
+  state.battle.ultActiveUntil = now + 8000;
+  const maxParty = partyMaxHp(state);
+  const healAmount = Math.round(maxParty * 0.40);
+  state.battle.partyHp = Math.min(maxParty, (state.battle.partyHp || 0) + healAmount);
+  return { durationMs: 8000, healAmount };
+}
+
+export function canBloomAnew(state) {
+  if (!state?.battle) return false;
+  return (state.battle.wave || 1) >= MIN_BLOOM_WAVE || (state.battle.wins || 0) >= MIN_BLOOM_WAVE;
+}
+
+export function calculateGoldenSeeds(state) {
+  if (!state?.battle || !canBloomAnew(state)) return 0;
+  const waveFactor = Math.floor(Math.pow((state.battle.wave - 20) / 7, 1.6));
+  const winsFactor = Math.floor((state.battle.wins || 0) / 20);
+  const harvestedFactor = Math.max(0, Math.floor(Math.log10(Math.max(10, state.totalHarvested || 0)) - 3));
+  return Math.max(1, waveFactor + winsFactor + harvestedFactor);
+}
+
+export function bloomAnew(state) {
+  if (!canBloomAnew(state)) return 0;
+  const seedsGained = calculateGoldenSeeds(state);
+  state.goldenSeeds = (state.goldenSeeds || 0) + seedsGained;
+  state.bloomCount = (state.bloomCount || 0) + 1;
+  state.leaves = 0;
+  state.plots = 1;
+  state.heroes = { sprout: 1 };
+  state.legion = { scout: 0, archer: 0, guardian: 0 };
+  state.boosts = { harvest: 0, power: 0, vitality: 0 };
+
+  const newMaxHp = partyMaxHp(state);
+  state.battle = {
+    wave: 1,
+    enemyHp: enemyMaxHp(1),
+    partyHp: newMaxHp,
+    wins: 0,
+    earned: 0,
+    energy: 0,
+    ultActiveUntil: 0,
+  };
+  return seedsGained;
+}
+
+export function advanceCombat(state, seconds, now = Date.now()) {
   if (!state?.battle) return;
   let remaining = Math.min(8 * 60 * 60, Math.max(0, Number(seconds) || 0));
   if (remaining <= 0) return;
@@ -137,13 +236,18 @@ export function advanceCombat(state, seconds) {
   const maxHp = partyMaxHp(state);
   const battle = state.battle;
 
-  // Sanitize HP values
+  // Sanitize HP and energy
   if (!Number.isFinite(battle.partyHp) || battle.partyHp <= 0) battle.partyHp = maxHp;
   if (!Number.isFinite(battle.enemyHp) || battle.enemyHp <= 0) battle.enemyHp = enemyMaxHp(battle.wave);
+  if (!Number.isFinite(battle.energy)) battle.energy = 0;
+
+  // Energy charge over time: base 4% per second, boosted by golden_can artifact
+  const energyRate = 4.0 * (1 + (state.artifacts?.golden_can || 0) * 0.25);
+  battle.energy = Math.min(100, Math.max(0, battle.energy + energyRate * Math.min(remaining, 10)));
 
   let steps = 0;
   while (remaining > 0.0001 && steps++ < 10000) {
-    const power = Math.max(0.1, combatPower(state));
+    const power = Math.max(0.1, combatPower(state, now));
     const incoming = Math.max(0.01, enemyDamage(battle.wave));
     const untilWin = battle.enemyHp / power;
     const untilLoss = battle.partyHp / incoming;
@@ -164,7 +268,7 @@ export function advanceCombat(state, seconds) {
     remaining -= elapsed;
 
     if (battle.enemyHp <= 0.001) {
-      const reward = waveReward(battle.wave, state.equipped);
+      const reward = waveReward(battle.wave, state.equipped, state);
       state.leaves = Math.max(0, (state.leaves || 0) + reward);
       state.totalHarvested = Math.max(0, (state.totalHarvested || 0) + reward);
       battle.earned = Math.max(0, (battle.earned || 0) + reward);
@@ -173,6 +277,8 @@ export function advanceCombat(state, seconds) {
       battle.enemyHp = enemyMaxHp(battle.wave);
       const partyCap = partyMaxHp(state);
       battle.partyHp = Math.min(partyCap, battle.partyHp + partyCap * 0.25);
+      // Extra burst energy on wave clear
+      battle.energy = Math.min(100, (battle.energy || 0) + 5);
     } else if (battle.partyHp <= 0.001) {
       const partyCap = partyMaxHp(state);
       battle.partyHp = partyCap;
@@ -195,6 +301,7 @@ export function sanitizeSave(raw) {
       heroes: { ...DEFAULT_STATE.heroes },
       legion: { ...DEFAULT_STATE.legion },
       boosts: { ...DEFAULT_STATE.boosts },
+      artifacts: { ...DEFAULT_STATE.artifacts },
       settings: { ...DEFAULT_STATE.settings },
       battle: { ...DEFAULT_STATE.battle },
       lastSaved: Date.now(),
@@ -220,6 +327,13 @@ export function sanitizeSave(raw) {
     ])
   );
 
+  const artifacts = Object.fromEntries(
+    ARTIFACTS.map((art) => [
+      art.id,
+      Math.max(0, Math.min(25, Math.floor(Number(raw.artifacts?.[art.id])) || 0)),
+    ])
+  );
+
   const legion = Object.fromEntries(
     UNITS.map((unit) => [
       unit.id,
@@ -234,11 +348,12 @@ export function sanitizeSave(raw) {
     ? raw.equipped
     : null;
 
-  const tempState = { heroes, legion, boosts, equipped };
+  const tempState = { heroes, legion, boosts, artifacts, equipped };
   const maxParty = partyMaxHp(tempState);
 
   const partyHpVal = Number(raw.battle?.partyHp);
   const enemyHpVal = Number(raw.battle?.enemyHp);
+  const energyVal = Number(raw.battle?.energy);
 
   return {
     leaves: Number.isFinite(Number(raw.leaves)) ? Math.max(0, Number(raw.leaves)) : 0,
@@ -247,10 +362,14 @@ export function sanitizeSave(raw) {
     heroes,
     legion,
     boosts,
+    artifacts,
+    goldenSeeds: Number.isFinite(Number(raw.goldenSeeds)) ? Math.max(0, Math.floor(Number(raw.goldenSeeds))) : 0,
+    bloomCount: Number.isFinite(Number(raw.bloomCount)) ? Math.max(0, Math.floor(Number(raw.bloomCount))) : 0,
     equipped,
     settings: {
       motion: raw.settings?.motion !== false,
       floatingText: raw.settings?.floatingText !== false,
+      sound: raw.settings?.sound !== false,
     },
     battle: {
       wave,
@@ -258,6 +377,8 @@ export function sanitizeSave(raw) {
       partyHp: Number.isFinite(partyHpVal) && partyHpVal > 0 ? Math.min(maxParty, partyHpVal) : maxParty,
       wins,
       earned: Number.isFinite(Number(raw.battle?.earned)) ? Math.max(0, Number(raw.battle?.earned)) : 0,
+      energy: Number.isFinite(energyVal) ? Math.min(100, Math.max(0, energyVal)) : 0,
+      ultActiveUntil: Number.isFinite(Number(raw.battle?.ultActiveUntil)) ? Number(raw.battle.ultActiveUntil) : 0,
     },
     lastSaved: Number.isFinite(Number(raw.lastSaved)) ? Math.min(Date.now(), Number(raw.lastSaved)) : Date.now(),
   };
