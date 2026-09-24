@@ -1,42 +1,32 @@
 import './style.css';
+import {
+  HEROES,
+  PLOT_COSTS,
+  HERO_IMAGES,
+  BOOSTS,
+  UNITS,
+  ACCESSORIES,
+  ENEMIES,
+  DEFAULT_STATE,
+  troopCount,
+  lps,
+  combatPower,
+  partyMaxHp,
+  enemyMaxHp,
+  enemyDamage,
+  waveReward,
+  upgradeCost,
+  unitCost,
+  boostCost,
+  nextPlotCost,
+  enemyForWave,
+  advanceCombat,
+  sanitizeSave,
+} from './game-engine.js';
 
-const HEROES = [
-  { id: 'sprout', name: 'Sprout Knight', role: 'The cheerful first defender', emoji: '🛡️', plant: '🌱', baseLps: 1, unlockCost: 0, upgradeBase: 12, color: 'green', plot: 0 },
-  { id: 'rose', name: 'Rose Mage', role: 'Magic in full bloom', emoji: '🪄', plant: '🌹', baseLps: 4, unlockCost: 65, upgradeBase: 55, color: 'pink', plot: 1 },
-  { id: 'oak', name: 'Oak Sentinel', role: 'A mighty woodland guardian', emoji: '🪓', plant: '🌳', baseLps: 12, unlockCost: 280, upgradeBase: 180, color: 'amber', plot: 2 },
-  { id: 'daisy', name: 'Daisy Dancer', role: 'Every petal has a rhythm', emoji: '🎵', plant: '🌼', baseLps: 32, unlockCost: 980, upgradeBase: 560, color: 'yellow', plot: 3 },
-  { id: 'moss', name: 'Moss Golem', role: 'Gentle giant of the glade', emoji: '💚', plant: '🪨', baseLps: 90, unlockCost: 3400, upgradeBase: 1800, color: 'teal', plot: 4 },
-  { id: 'sunflower', name: 'Sunflower Sage', role: 'A little pocket of sunshine', emoji: '☀️', plant: '🌻', baseLps: 240, unlockCost: 11000, upgradeBase: 6200, color: 'orange', plot: 5 },
-];
-const PLOT_COSTS = [0, 30, 150, 520, 1800, 6200];
-const HERO_IMAGES = { sprout: 'sprout-knight', rose: 'rose-mage', oak: 'oak-sentinel', daisy: 'daisy-dancer', moss: 'moss-golem', sunflower: 'sunflower-sage' };
 const heroPortrait = (hero) => `<img src="/assets/${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
 const SAVE_KEY = 'idle-garden-hero-v1';
-const DEFAULT = { leaves: 0, totalHarvested: 0, plots: 1, heroes: { sprout: 1 }, legion: { scout: 0, archer: 0, guardian: 0 }, battle: { wave: 1, enemyHp: 24, partyHp: 110, wins: 0, earned: 0 }, boosts: { harvest: 0, power: 0, vitality: 0 }, equipped: null, settings: { motion: true, floatingText: true }, lastSaved: Date.now() };
 const SCREENS = ['home', 'garden', 'combat', 'bag', 'upgrades', 'settings'];
-const BOOSTS = [
-  { id: 'harvest', name: 'Golden Watering Can', emoji: '🪣', desc: 'All heroes harvest 25% more leaves per level.', baseCost: 80, color: 'green' },
-  { id: 'power', name: 'Training Grounds', emoji: '⚔️', desc: 'Your legion deals 20% more damage per level.', baseCost: 100, color: 'amber' },
-  { id: 'vitality', name: 'Healing Spring', emoji: '💧', desc: 'Increase legion maximum health by 40 per level.', baseCost: 120, color: 'teal' },
-];
-const UNITS = [
-  { id: 'scout', name: 'Seedling Scout', emoji: '🌱', desc: 'A tiny but eager garden defender.', plot: 1, baseCost: 25, harvest: .5, power: 2, hp: 4 },
-  { id: 'archer', name: 'Bloom Archer', emoji: '🌸', desc: 'Petal arrows from a safe distance.', plot: 2, baseCost: 120, harvest: 2, power: 8, hp: 3 },
-  { id: 'guardian', name: 'Root Guardian', emoji: '🌳', desc: 'Sturdy roots hold the front line.', plot: 3, baseCost: 450, harvest: 5, power: 3, hp: 20 },
-];
-const ACCESSORIES = [
-  { id: 'leaf_charm', name: 'Leaf Charm', emoji: '🍀', desc: 'A lucky first find.', bonus: '+10% Leaf Points', unlockAt: 0 },
-  { id: 'rose_brooch', name: 'Rose Brooch', emoji: '🌹', desc: 'A bloom from the battlefield.', bonus: '+15% legion damage', unlockAt: 3 },
-  { id: 'oak_badge', name: 'Oak Badge', emoji: '🛡️', desc: 'The strength of old roots.', bonus: '+30 legion health', unlockAt: 8 },
-  { id: 'sunstone', name: 'Sunstone', emoji: '☀️', desc: 'A warm reward for brave heroes.', bonus: '+25% battle rewards', unlockAt: 15 },
-];
-const ENEMIES = [
-  { name: 'Grumpy Mushroom', emoji: '🍄', type: 'Forest nuisance', tint: 'mushroom' },
-  { name: 'Thorny Bramble', emoji: '🌵', type: 'Prickly troublemaker', tint: 'bramble' },
-  { name: 'Slime Sprig', emoji: '🟢', type: 'Sticky little rascal', tint: 'slime' },
-  { name: 'Wild Wasp', emoji: '🐝', type: 'Buzzing menace', tint: 'wasp' },
-  { name: 'Shadow Stump', emoji: '🪵', type: 'Woodland boss', tint: 'boss' },
-];
 const ICONS = {
   leaf: '<path d="M20 4C10 4 4 9 4 17a3 3 0 0 0 3 3c8 0 13-6 13-16Z"/><path d="M4 20c3-5 7-8 12-10"/>',
   spark: '<path d="m12 3 1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3Z"/><path d="m19 19 .5 1.5L21 21l-1.5.5L19 23l-.5-1.5L17 21l1.5-.5L19 19Z"/>',
@@ -49,44 +39,16 @@ const ICONS = {
   check: '<path d="m5 12 4 4L19 6"/>',
 };
 const icon = (name, size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
-const fmt = (n) => n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
-const fmtRate = (n) => n < 10 ? Number(n.toFixed(1)).toString() : fmt(n);
+const fmt = (n) => !Number.isFinite(n) || n < 0 ? '0' : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
+const fmtRate = (n) => !Number.isFinite(n) || n < 0 ? '0' : n < 10 ? Number(n.toFixed(1)).toString() : fmt(n);
 
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (!raw || typeof raw !== 'object') return { ...DEFAULT, heroes: { ...DEFAULT.heroes }, legion: { ...DEFAULT.legion }, boosts: { ...DEFAULT.boosts }, settings: { ...DEFAULT.settings }, battle: { ...DEFAULT.battle } };
-    const plots = Math.max(1, Math.min(HEROES.length, Math.floor(Number(raw.plots) || 1)));
-    const heroes = { sprout: Math.max(1, Math.floor(Number(raw.heroes?.sprout) || 1)) };
-    HEROES.slice(1).forEach((hero) => {
-      const level = Math.floor(Number(raw.heroes?.[hero.id]) || 0);
-      if (hero.plot < plots && level > 0) heroes[hero.id] = Math.min(level, 100000);
-    });
-    const wave = Math.max(1, Math.min(150, Math.floor(Number(raw.battle?.wave) || 1)));
-    const maxEnemy = enemyMaxHp(wave);
-    const boosts = Object.fromEntries(BOOSTS.map(boost => [boost.id, Math.max(0, Math.min(100, Math.floor(Number(raw.boosts?.[boost.id]) || 0)))]));
-    const legion = Object.fromEntries(UNITS.map(unit => [unit.id, unit.plot <= plots ? Math.max(0, Math.min(10000, Math.floor(Number(raw.legion?.[unit.id]) || 0))) : 0]));
-    const equipped = ACCESSORIES.some(item => item.id === raw.equipped && (Number(raw.battle?.wins) || 0) >= item.unlockAt) ? raw.equipped : null;
-    const maxParty = 100 + Object.values(heroes).reduce((sum, level) => sum + level * 10, 0) + UNITS.reduce((sum, unit) => sum + legion[unit.id] * unit.hp, 0) + boosts.vitality * 40 + (equipped === 'oak_badge' ? 30 : 0);
-    return {
-      leaves: Math.max(0, Number(raw.leaves) || 0),
-      totalHarvested: Math.max(0, Number(raw.totalHarvested) || 0),
-      plots,
-      heroes,
-      legion,
-      boosts,
-      equipped,
-      settings: { motion: raw.settings?.motion !== false, floatingText: raw.settings?.floatingText !== false },
-      battle: {
-        wave,
-        enemyHp: Math.max(0.01, Math.min(maxEnemy, Number(raw.battle?.enemyHp) || maxEnemy)),
-        partyHp: Math.max(0.01, Math.min(maxParty, Number(raw.battle?.partyHp) || maxParty)),
-        wins: Math.max(0, Math.floor(Number(raw.battle?.wins) || 0)),
-        earned: Math.max(0, Number(raw.battle?.earned) || 0),
-      },
-      lastSaved: Math.min(Date.now(), Number(raw.lastSaved) || Date.now()),
-    };
-  } catch { return { ...DEFAULT, heroes: { ...DEFAULT.heroes }, legion: { ...DEFAULT.legion }, boosts: { ...DEFAULT.boosts }, settings: { ...DEFAULT.settings }, battle: { ...DEFAULT.battle } }; }
+    return sanitizeSave(raw);
+  } catch {
+    return sanitizeSave(null);
+  }
 }
 
 let state = load();
@@ -99,18 +61,18 @@ let lastFloat = Date.now();
 let toastTimer;
 let resetting = false;
 const offlineSeconds = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSaved) / 1000));
-const troopCount = () => UNITS.reduce((sum, unit) => sum + state.legion[unit.id], 0);
-const lps = () => (HEROES.reduce((sum, hero) => sum + (state.heroes[hero.id] || 0) * hero.baseLps, 0) + UNITS.reduce((sum, unit) => sum + state.legion[unit.id] * unit.harvest, 0)) * (1 + state.boosts.harvest * .25) * (state.equipped === 'leaf_charm' ? 1.1 : 1);
-const combatPower = () => (HEROES.reduce((sum, hero) => sum + (state.heroes[hero.id] || 0) * hero.baseLps * 3, 0) + UNITS.reduce((sum, unit) => sum + state.legion[unit.id] * unit.power, 0)) * (1 + state.boosts.power * .2) * (state.equipped === 'rose_brooch' ? 1.15 : 1);
-const partyMaxHp = () => 100 + Object.values(state.heroes).reduce((sum, level) => sum + level * 10, 0) + UNITS.reduce((sum, unit) => sum + state.legion[unit.id] * unit.hp, 0) + state.boosts.vitality * 40 + (state.equipped === 'oak_badge' ? 30 : 0);
-function enemyMaxHp(wave) { return Math.round(24 * Math.pow(1.27, wave - 1) * (wave % 5 === 0 ? 1.8 : 1)); }
-function enemyDamage(wave) { return 1.1 * Math.pow(1.18, wave - 1); }
-function waveReward(wave) { return Math.ceil(8 * Math.pow(1.23, wave - 1) * (wave % 5 === 0 ? 2 : 1) * (state.equipped === 'sunstone' ? 1.25 : 1)); }
+const getLps = () => lps(state);
+const getCombatPower = () => combatPower(state);
+const getPartyMaxHp = () => partyMaxHp(state);
+const getTroopCount = () => troopCount(state);
+
 if (offlineSeconds > 5) {
-  const earned = lps() * offlineSeconds;
+  const earned = getLps() * offlineSeconds;
   state.leaves += earned;
   state.totalHarvested += earned;
-  advanceCombat(offlineSeconds);
+  advanceCombat(state, offlineSeconds);
+  state.lastSaved = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
 }
 
 const app = document.querySelector('#app');
@@ -177,29 +139,31 @@ function toast(message) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('visible'), 3000);
 }
-function upgradeCost(hero) { return Math.ceil(hero.upgradeBase * Math.pow(1.32, (state.heroes[hero.id] || 1) - 1)); }
-function unitCost(unit) { return Math.ceil(unit.baseCost * Math.pow(1.16, state.legion[unit.id])); }
-function nextPlotCost() { return PLOT_COSTS[state.plots]; }
-function boostCost(boost) { return Math.ceil(boost.baseCost * Math.pow(1.8, state.boosts[boost.id])); }
+function getUpgradeCost(hero) { return upgradeCost(hero, state.heroes[hero.id]); }
+function getUnitCost(unit) { return unitCost(unit, state.legion[unit.id]); }
+function getNextPlotCost() { return nextPlotCost(state.plots); }
+function getBoostCost(boost) { return boostCost(boost, state.boosts[boost.id]); }
 function applySettings() {
   document.body.classList.toggle('motion-off', !state.settings.motion);
   visuals?.setMotion(state.settings.motion);
 }
 
 function renderNumbers() {
+  const currentLps = getLps();
   document.querySelector('#leaf-count').textContent = fmt(state.leaves);
-  document.querySelector('#lps-count').textContent = `+${fmtRate(lps())} per second`;
-  document.querySelector('#garden-output').textContent = `🍃 ${fmtRate(lps())} leaves / sec`;
+  document.querySelector('#lps-count').textContent = `+${fmtRate(currentLps)} per second`;
+  document.querySelector('#garden-output').textContent = `🍃 ${fmtRate(currentLps)} leaves / sec`;
   document.querySelector('#garden-count').innerHTML = `${icon('grid', 16)} ${state.plots} / ${HEROES.length} plots open`;
   renderHomeNumbers();
 }
 function renderHomeNumbers() {
+  const currentLps = getLps();
   document.querySelector('#home-leaves').textContent = fmt(state.leaves);
-  document.querySelector('#home-lps').textContent = `+${fmtRate(lps())} / sec`;
+  document.querySelector('#home-lps').textContent = `+${fmtRate(currentLps)} / sec`;
   document.querySelector('#home-heroes').textContent = `${Object.keys(state.heroes).length} / ${HEROES.length}`;
-  document.querySelector('#home-troops').textContent = fmt(troopCount());
+  document.querySelector('#home-troops').textContent = fmt(getTroopCount());
   document.querySelector('#home-wave').textContent = state.battle.wave;
-  document.querySelector('#home-rate').textContent = fmtRate(lps());
+  document.querySelector('#home-rate').textContent = fmtRate(currentLps);
 }
 function renderHome() {
   const owned = HEROES.filter(hero => state.heroes[hero.id]).slice(0, 3);
@@ -225,23 +189,23 @@ function renderHeroes() {
       const owned = !!state.heroes[hero.id]; const open = hero.plot < state.plots;
       return `<button class="hero-list-item ${selectedHero === hero.id ? 'active' : ''}" data-select="${hero.id}"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><span class="list-copy"><strong>${hero.name}</strong><small>${owned ? `Level ${state.heroes[hero.id]} · ${fmtRate(state.heroes[hero.id] * hero.baseLps)} / sec` : open ? 'Ready to recruit' : 'Unlock the plot first'}</small></span><span class="list-status">${owned ? icon('check', 18) : open ? icon('arrow', 18) : icon('lock', 16)}</span></button>`;
     }).join('')}</div></div>
-    <div class="detail-stack"><div class="hero-detail-card ${selected.color}"><span class="detail-tag">${selectedOwned ? 'YOUR GARDEN HERO' : selectedOpen ? 'READY TO RECRUIT' : 'FUTURE GARDEN HERO'}</span><div class="detail-main"><span class="detail-avatar">${heroPortrait(selected)}</span><div><h3>${selected.name}</h3><p>${selected.role}</p><span class="detail-rate">${icon('leaf', 16)} ${fmtRate(selected.baseLps)} leaves / sec / level</span></div></div><div class="detail-divider"></div>${selectedOwned ? `<div class="upgrade-row"><div><span class="upgrade-label">CURRENT LEVEL</span><strong>${state.heroes[selected.id]} <span>→ ${state.heroes[selected.id] + 1}</span></strong></div><div><span class="upgrade-label">NEXT HARVEST</span><strong>+${fmtRate((state.heroes[selected.id] + 1) * selected.baseLps)} <span>/ sec</span></strong></div></div><button class="primary-button" data-upgrade="${selected.id}" ${state.leaves < upgradeCost(selected) ? 'disabled' : ''}>${icon('spark', 18)} Upgrade hero <span>${icon('leaf', 16)} ${fmt(upgradeCost(selected))}</span></button>` : `<div class="recruit-copy">${selectedOpen ? 'Add this hero to your garden and start harvesting together.' : 'Open this garden plot to make room for a new hero.'}</div><button class="primary-button" data-recruit="${selected.id}" ${!selectedOpen || state.leaves < selected.unlockCost ? 'disabled' : ''}>${selectedOpen ? `${icon('plus', 18)} Recruit hero <span>${icon('leaf', 16)} ${fmt(selected.unlockCost)}</span>` : `${icon('lock', 18)} Plot locked`}</button>`}</div>
-    <div class="plot-upgrade-card"><span class="plot-upgrade-icon">🌷</span><div><strong>Make room to bloom</strong><small>${state.plots < HEROES.length ? `Open plot ${state.plots + 1} to welcome another hero.` : 'Every plot is open. Your garden is full!'}</small></div><button data-plot ${state.plots >= HEROES.length || state.leaves < nextPlotCost() ? 'disabled' : ''}>${state.plots >= HEROES.length ? 'All open' : `${icon('leaf', 15)} ${fmt(nextPlotCost())} ${icon('arrow', 15)}`}</button></div></div>
+    <div class="detail-stack"><div class="hero-detail-card ${selected.color}"><span class="detail-tag">${selectedOwned ? 'YOUR GARDEN HERO' : selectedOpen ? 'READY TO RECRUIT' : 'FUTURE GARDEN HERO'}</span><div class="detail-main"><span class="detail-avatar">${heroPortrait(selected)}</span><div><h3>${selected.name}</h3><p>${selected.role}</p><span class="detail-rate">${icon('leaf', 16)} ${fmtRate(selected.baseLps)} leaves / sec / level</span></div></div><div class="detail-divider"></div>${selectedOwned ? `<div class="upgrade-row"><div><span class="upgrade-label">CURRENT LEVEL</span><strong>${state.heroes[selected.id]} <span>→ ${state.heroes[selected.id] + 1}</span></strong></div><div><span class="upgrade-label">NEXT HARVEST</span><strong>+${fmtRate((state.heroes[selected.id] + 1) * selected.baseLps)} <span>/ sec</span></strong></div></div><button class="primary-button" data-upgrade="${selected.id}" ${state.leaves < getUpgradeCost(selected) ? 'disabled' : ''}>${icon('spark', 18)} Upgrade hero <span>${icon('leaf', 16)} ${fmt(getUpgradeCost(selected))}</span></button>` : `<div class="recruit-copy">${selectedOpen ? 'Add this hero to your garden and start harvesting together.' : 'Open this garden plot to make room for a new hero.'}</div><button class="primary-button" data-recruit="${selected.id}" ${!selectedOpen || state.leaves < selected.unlockCost ? 'disabled' : ''}>${selectedOpen ? `${icon('plus', 18)} Recruit hero <span>${icon('leaf', 16)} ${fmt(selected.unlockCost)}</span>` : `${icon('lock', 18)} Plot locked`}</button>`}</div>
+    <div class="plot-upgrade-card"><span class="plot-upgrade-icon">🌷</span><div><strong>Make room to bloom</strong><small>${state.plots < HEROES.length ? `Open plot ${state.plots + 1} to welcome another hero.` : 'Every plot is open. Your garden is full!'}</small></div><button data-plot ${state.plots >= HEROES.length || state.leaves < getNextPlotCost() ? 'disabled' : ''}>${state.plots >= HEROES.length ? 'All open' : `${icon('leaf', 15)} ${fmt(getNextPlotCost())} ${icon('arrow', 15)}`}</button></div></div>
   </div>`;
 }
 function renderLegion() {
-  content.innerHTML = `<div class="legion-intro-card"><div><span class="section-kicker">GROW YOUR GARDEN ARMY</span><h3>Small friends, big courage.</h3><p>Recruit troops to harvest leaves and fight beside your heroes.</p></div><span>🛡️ ${fmt(troopCount())} troops</span></div><div class="unit-grid">${UNITS.map(unit => {
+  content.innerHTML = `<div class="legion-intro-card"><div><span class="section-kicker">GROW YOUR GARDEN ARMY</span><h3>Small friends, big courage.</h3><p>Recruit troops to harvest leaves and fight beside your heroes.</p></div><span>🛡️ ${fmt(getTroopCount())} troops</span></div><div class="unit-grid">${UNITS.map(unit => {
     const unlocked = state.plots >= unit.plot;
-    return `<article class="unit-card ${unlocked ? '' : 'unit-locked'}"><div class="unit-top"><span class="unit-avatar">${unit.emoji}</span><span class="unit-count">${fmt(state.legion[unit.id])} RECRUITED</span></div><h3>${unit.name}</h3><p>${unit.desc}</p><div class="unit-stats"><span>🍃 +${fmtRate(unit.harvest)} / sec</span><span>⚔️ +${fmtRate(unit.power)} power</span><span>💚 +${unit.hp} HP</span></div><button class="primary-button" data-recruit-unit="${unit.id}" ${!unlocked || state.leaves < unitCost(unit) ? 'disabled' : ''}>${unlocked ? `Recruit one <span>🍃 ${fmt(unitCost(unit))}</span>` : `Open plot ${unit.plot} to unlock`}</button></article>`;
+    return `<article class="unit-card ${unlocked ? '' : 'unit-locked'}"><div class="unit-top"><span class="unit-avatar">${unit.emoji}</span><span class="unit-count">${fmt(state.legion[unit.id])} RECRUITED</span></div><h3>${unit.name}</h3><p>${unit.desc}</p><div class="unit-stats"><span>🍃 +${fmtRate(unit.harvest)} / sec</span><span>⚔️ +${fmtRate(unit.power)} power</span><span>💚 +${unit.hp} HP</span></div><button class="primary-button" data-recruit-unit="${unit.id}" ${!unlocked || state.leaves < getUnitCost(unit) ? 'disabled' : ''}>${unlocked ? `Recruit one <span>🍃 ${fmt(getUnitCost(unit))}</span>` : `Open plot ${unit.plot} to unlock`}</button></article>`;
   }).join('')}</div>`;
-  content.querySelector('.legion-intro-card > span').textContent = `🛡️ ${fmt(troopCount())} troop${troopCount() === 1 ? '' : 's'}`;
+  content.querySelector('.legion-intro-card > span').textContent = `🛡️ ${fmt(getTroopCount())} troop${getTroopCount() === 1 ? '' : 's'}`;
 }
 const ACHIEVEMENTS = [
   { icon: '🌱', name: 'First sprout', desc: 'Begin your garden adventure', done: () => true },
   { icon: '🍃', name: 'A handful of leaves', desc: 'Harvest 100 Leaf Points total', done: () => state.totalHarvested >= 100 },
   { icon: '🌹', name: 'Growing together', desc: 'Recruit your second hero', done: () => Object.keys(state.heroes).length >= 2 },
   { icon: '🌷', name: 'Room to bloom', desc: 'Open 3 garden plots', done: () => state.plots >= 3 },
-  { icon: '🌳', name: 'A thriving garden', desc: 'Reach 100 leaves per second', done: () => lps() >= 100 },
+  { icon: '🌳', name: 'A thriving garden', desc: 'Reach 100 leaves per second', done: () => getLps() >= 100 },
   { icon: '☀️', name: 'Full bloom', desc: 'Open all 6 garden plots', done: () => state.plots === HEROES.length },
 ];
 function renderAchievements() {
@@ -249,7 +213,7 @@ function renderAchievements() {
   content.innerHTML = `<div class="subpage-head"><div><h3>Little milestones, big smiles</h3><p>Every leaf is a step toward something lovely.</p></div><span class="achievement-progress">🏆 ${done} / ${ACHIEVEMENTS.length} complete</span></div><div class="achievement-grid">${ACHIEVEMENTS.map(a => `<div class="achievement-card ${a.done() ? 'complete' : ''}"><span class="achievement-icon">${a.icon}</span><div><strong>${a.name}</strong><small>${a.desc}</small></div><span class="achievement-check">${a.done() ? icon('check', 18) : icon('lock', 16)}</span></div>`).join('')}</div>`;
 }
 function renderStats() {
-  content.innerHTML = `<div class="subpage-head"><div><h3>Your garden at a glance</h3><p>Look how far your little world has come.</p></div><span class="achievement-progress">🌿 Always growing</span></div><div class="stats-grid"><div class="stat-card"><span>🍃</span><small>TOTAL LEAVES HARVESTED</small><strong>${fmt(state.totalHarvested)}</strong><p>All those little harvests add up.</p></div><div class="stat-card"><span>⚡</span><small>CURRENT PRODUCTION</small><strong>${fmtRate(lps())} <em>/ sec</em></strong><p>Your heroes are hard at work.</p></div><div class="stat-card"><span>🦸</span><small>GARDEN HEROES</small><strong>${Object.keys(state.heroes).length} <em>/ ${HEROES.length}</em></strong><p>Friends make the garden brighter.</p></div><div class="stat-card"><span>🌷</span><small>OPEN GARDEN PLOTS</small><strong>${state.plots} <em>/ ${HEROES.length}</em></strong><p>Plenty of room to grow.</p></div></div>`;
+  content.innerHTML = `<div class="subpage-head"><div><h3>Your garden at a glance</h3><p>Look how far your little world has come.</p></div><span class="achievement-progress">🌿 Always growing</span></div><div class="stats-grid"><div class="stat-card"><span>🍃</span><small>TOTAL LEAVES HARVESTED</small><strong>${fmt(state.totalHarvested)}</strong><p>All those little harvests add up.</p></div><div class="stat-card"><span>⚡</span><small>CURRENT PRODUCTION</small><strong>${fmtRate(getLps())} <em>/ sec</em></strong><p>Your heroes are hard at work.</p></div><div class="stat-card"><span>🦸</span><small>GARDEN HEROES</small><strong>${Object.keys(state.heroes).length} <em>/ ${HEROES.length}</em></strong><p>Friends make the garden brighter.</p></div><div class="stat-card"><span>🌷</span><small>OPEN GARDEN PLOTS</small><strong>${state.plots} <em>/ ${HEROES.length}</em></strong><p>Plenty of room to grow.</p></div></div>`;
 }
 function renderPanel() {
   if (activeTab === 'heroes') renderHeroes();
@@ -257,61 +221,33 @@ function renderPanel() {
   else if (activeTab === 'achievements') renderAchievements();
   else renderStats();
 }
-function enemyForWave(wave) { return ENEMIES[(wave - 1) % ENEMIES.length]; }
-function advanceCombat(seconds) {
-  let remaining = Math.min(8 * 60 * 60, Math.max(0, seconds));
-  let steps = 0;
-  while (remaining > 0.0001 && steps++ < 10000) {
-    const battle = state.battle;
-    const power = Math.max(0.1, combatPower());
-    const incoming = enemyDamage(battle.wave);
-    const untilWin = battle.enemyHp / power;
-    const untilLoss = battle.partyHp / incoming;
-    const elapsed = Math.min(remaining, untilWin, untilLoss);
-    battle.enemyHp = Math.max(0, battle.enemyHp - power * elapsed);
-    battle.partyHp = Math.max(0, battle.partyHp - incoming * elapsed);
-    remaining -= elapsed;
-    if (battle.enemyHp <= 0.001) {
-      const reward = waveReward(battle.wave);
-      state.leaves += reward;
-      state.totalHarvested += reward;
-      battle.earned += reward;
-      battle.wins++;
-      battle.wave = Math.min(150, battle.wave + 1);
-      battle.enemyHp = enemyMaxHp(battle.wave);
-      battle.partyHp = Math.min(partyMaxHp(), battle.partyHp + partyMaxHp() * 0.25);
-    } else if (battle.partyHp <= 0.001) {
-      battle.partyHp = partyMaxHp();
-      battle.enemyHp = enemyMaxHp(battle.wave);
-    }
-  }
-}
 function renderCombat() {
   const battle = state.battle;
   const enemy = enemyForWave(battle.wave);
   const owned = HEROES.filter(hero => state.heroes[hero.id]);
   document.querySelector('#battle-figures').innerHTML = owned.map(hero => `<span class="battle-hero ${hero.color}" title="${hero.name}">${hero.plant}<small>${hero.emoji}</small></span>`).join('');
-  document.querySelector('#legion-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(troopCount())} troop${troopCount() === 1 ? '' : 's'}`;
+  document.querySelector('#legion-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(getTroopCount())} troop${getTroopCount() === 1 ? '' : 's'}`;
   document.querySelector('#enemy-type').textContent = enemy.type.toUpperCase();
   document.querySelector('#enemy-figure').innerHTML = enemy.emoji;
   document.querySelector('#enemy-figure').className = `enemy-figure ${enemy.tint}`;
   document.querySelector('#enemy-name').textContent = enemy.name;
   document.querySelector('#enemy-wave').textContent = battle.wave % 5 === 0 ? 'BOSS WAVE' : `Wave ${battle.wave} enemy`;
-  document.querySelector('#legion-badge').textContent = `${owned.length + troopCount()} ACTIVE`;
+  document.querySelector('#legion-badge').textContent = `${owned.length + getTroopCount()} ACTIVE`;
   document.querySelector('#legion-roster').innerHTML = owned.map(hero => `<div class="roster-row"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><div><strong>${hero.name}</strong><small>Level ${state.heroes[hero.id]} · ${fmtRate(state.heroes[hero.id] * hero.baseLps * 3)} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unit.power * state.legion[unit.id])} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('');
   renderBattleNumbers();
-  visuals?.syncCombat();
+  if (activeScreen === 'combat') visuals?.syncCombat();
 }
 function renderBattleNumbers() {
   const battle = state.battle;
   const maxEnemy = enemyMaxHp(battle.wave);
+  const maxParty = getPartyMaxHp();
   document.querySelector('#wave-label').textContent = battle.wave;
-  document.querySelector('#party-hp-label').textContent = `${fmt(battle.partyHp)} / ${fmt(partyMaxHp())}`;
+  document.querySelector('#party-hp-label').textContent = `${fmt(battle.partyHp)} / ${fmt(maxParty)}`;
   document.querySelector('#enemy-hp-label').textContent = `${fmt(battle.enemyHp)} / ${fmt(maxEnemy)}`;
-  document.querySelector('#party-hp-fill').style.width = `${Math.max(0, Math.min(100, battle.partyHp / partyMaxHp() * 100))}%`;
-  document.querySelector('#enemy-hp-fill').style.width = `${Math.max(0, Math.min(100, battle.enemyHp / maxEnemy * 100))}%`;
-  document.querySelector('#battle-reward').textContent = `🍃 +${fmt(waveReward(battle.wave))} on victory`;
-  document.querySelector('#combat-power').textContent = fmtRate(combatPower());
+  document.querySelector('#party-hp-fill').style.width = `${Math.max(0, Math.min(100, (battle.partyHp / maxParty) * 100))}%`;
+  document.querySelector('#enemy-hp-fill').style.width = `${Math.max(0, Math.min(100, (battle.enemyHp / maxEnemy) * 100))}%`;
+  document.querySelector('#battle-reward').textContent = `🍃 +${fmt(waveReward(battle.wave, state.equipped))} on victory`;
+  document.querySelector('#combat-power').textContent = fmtRate(getCombatPower());
   document.querySelector('#waves-cleared').textContent = fmt(battle.wins);
   document.querySelector('#battle-earned').textContent = fmt(battle.earned);
 }
@@ -329,7 +265,7 @@ function renderUpgrades() {
     const level = state.boosts[boost.id];
     const maxed = level >= 20;
     const value = boost.id === 'vitality' ? `+${level * 40} HP` : `+${Math.round(level * (boost.id === 'harvest' ? 25 : 20))}%`;
-    return `<article class="boost-card ${boost.color}"><span class="boost-art">${boost.emoji}</span><span class="boost-level">LVL ${level} / 20</span><h3>${boost.name}</h3><p>${boost.desc}</p><div class="boost-effect"><span>CURRENT BONUS</span><strong>${value}</strong></div><button class="primary-button" data-boost="${boost.id}" ${maxed || state.leaves < boostCost(boost) ? 'disabled' : ''}>${maxed ? 'Max level' : `Upgrade <span>🍃 ${fmt(boostCost(boost))}</span>`}</button></article>`;
+    return `<article class="boost-card ${boost.color}"><span class="boost-art">${boost.emoji}</span><span class="boost-level">LVL ${level} / 20</span><h3>${boost.name}</h3><p>${boost.desc}</p><div class="boost-effect"><span>CURRENT BONUS</span><strong>${value}</strong></div><button class="primary-button" data-boost="${boost.id}" ${maxed || state.leaves < getBoostCost(boost) ? 'disabled' : ''}>${maxed ? 'Max level' : `Upgrade <span>🍃 ${fmt(getBoostCost(boost))}</span>`}</button></article>`;
   }).join('')}</div>`;
 }
 let resetPending = false;
@@ -354,7 +290,7 @@ function showScreen(name, updateHistory = true) {
 function renderAll() { renderNumbers(); renderGrid(); renderPanel(); renderCombat(); renderHome(); renderBag(); renderUpgrades(); renderSettings(); }
 
 function floatingHarvest() {
-  if (!state.settings.motion || !state.settings.floatingText) return;
+  if (activeScreen !== 'garden' || !state.settings.motion || !state.settings.floatingText) return;
   visuals?.harvest();
   HEROES.forEach(hero => {
     const level = state.heroes[hero.id];
@@ -366,7 +302,9 @@ function floatingHarvest() {
     span.textContent = `+${fmtRate(level * hero.baseLps * 2)} 🍃`;
     span.style.left = `${42 + Math.random() * 18}%`;
     plot.append(span);
-    span.addEventListener('animationend', () => span.remove(), { once: true });
+    const cleanup = () => span.remove();
+    span.addEventListener('animationend', cleanup, { once: true });
+    setTimeout(cleanup, 1500);
   });
 }
 
@@ -378,15 +316,15 @@ app.addEventListener('click', (event) => {
     const item = ACCESSORIES.find(entry => entry.id === equip.dataset.equip);
     if (!item || state.battle.wins < item.unlockAt) return;
     state.equipped = state.equipped === item.id ? null : item.id;
-    state.battle.partyHp = Math.min(state.battle.partyHp, partyMaxHp());
+    state.battle.partyHp = Math.min(state.battle.partyHp, getPartyMaxHp());
     save(); renderAll(); toast(state.equipped ? `${item.name} equipped!` : `${item.name} put away.`);
     return;
   }
   const recruitUnit = event.target.closest('[data-recruit-unit]');
   if (recruitUnit) {
     const unit = UNITS.find(entry => entry.id === recruitUnit.dataset.recruitUnit);
-    if (!unit || state.plots < unit.plot || state.leaves < unitCost(unit)) return;
-    state.leaves -= unitCost(unit);
+    if (!unit || state.plots < unit.plot || state.leaves < getUnitCost(unit)) return;
+    state.leaves -= getUnitCost(unit);
     state.legion[unit.id]++;
     state.battle.partyHp += unit.hp;
     save(); renderAll(); toast(`${unit.name} joined your legion!`);
@@ -395,8 +333,8 @@ app.addEventListener('click', (event) => {
   const boostButton = event.target.closest('[data-boost]');
   if (boostButton) {
     const boost = BOOSTS.find(entry => entry.id === boostButton.dataset.boost);
-    if (!boost || state.boosts[boost.id] >= 20 || state.leaves < boostCost(boost)) return;
-    state.leaves -= boostCost(boost);
+    if (!boost || state.boosts[boost.id] >= 20 || state.leaves < getBoostCost(boost)) return;
+    state.leaves -= getBoostCost(boost);
     state.boosts[boost.id]++;
     if (boost.id === 'vitality') state.battle.partyHp += 40;
     save(); renderAll(); toast(`${boost.name} reached level ${state.boosts[boost.id]}!`);
@@ -435,7 +373,7 @@ app.addEventListener('click', (event) => {
   const upgrade = event.target.closest('[data-upgrade]');
   if (upgrade) {
     const hero = HEROES.find(h => h.id === upgrade.dataset.upgrade);
-    const cost = upgradeCost(hero);
+    const cost = getUpgradeCost(hero);
     if (state.leaves < cost) return;
     state.leaves -= cost; state.heroes[hero.id]++; state.battle.partyHp += 10; save(); renderAll(); toast(`${hero.name} reached level ${state.heroes[hero.id]}!`);
     return;
@@ -448,8 +386,8 @@ app.addEventListener('click', (event) => {
     return;
   }
   if (event.target.closest('[data-plot]')) {
-    if (state.plots >= HEROES.length || state.leaves < nextPlotCost()) return;
-    state.leaves -= nextPlotCost(); state.plots++; save(); renderAll(); toast(`Plot ${state.plots} is ready to grow!`);
+    if (state.plots >= HEROES.length || state.leaves < getNextPlotCost()) return;
+    state.leaves -= getNextPlotCost(); state.plots++; save(); renderAll(); toast(`Plot ${state.plots} is ready to grow!`);
   }
 });
 
@@ -458,25 +396,47 @@ function tick() {
   const now = Date.now();
   const dt = Math.min(1, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
-  const gained = lps() * dt;
+  const gained = getLps() * dt;
   state.leaves += gained;
   state.totalHarvested += gained;
   const waveBefore = state.battle.wave;
-  advanceCombat(dt);
+  advanceCombat(state, dt);
   renderNumbers();
-  renderBattleNumbers();
-  if (state.battle.wave !== waveBefore) { renderCombat(); if (activeScreen === 'bag') renderBag(); }
-  const balance = document.querySelector('#upgrade-leaves');
-  if (balance) balance.textContent = fmt(state.leaves);
-  if (activeScreen === 'upgrades') document.querySelectorAll('[data-boost]').forEach(button => { const boost = BOOSTS.find(entry => entry.id === button.dataset.boost); button.disabled = state.boosts[boost.id] >= 20 || state.leaves < boostCost(boost); });
-  if (activeTab === 'heroes') {
-    content.querySelectorAll('[data-upgrade]').forEach(button => { const hero = HEROES.find(h => h.id === button.dataset.upgrade); button.disabled = state.leaves < upgradeCost(hero); });
-    content.querySelectorAll('[data-recruit]').forEach(button => { const hero = HEROES.find(h => h.id === button.dataset.recruit); button.disabled = hero.plot >= state.plots || state.leaves < hero.unlockCost; });
-    const plotButton = content.querySelector('[data-plot]');
-    if (plotButton) plotButton.disabled = state.plots >= HEROES.length || state.leaves < nextPlotCost();
+  if (activeScreen === 'combat') {
+    renderBattleNumbers();
+    if (state.battle.wave !== waveBefore) renderCombat();
+  } else if (state.battle.wave !== waveBefore && activeScreen === 'bag') {
+    renderBag();
   }
-  if (activeTab === 'legion') content.querySelectorAll('[data-recruit-unit]').forEach(button => { const unit = UNITS.find(entry => entry.id === button.dataset.recruitUnit); button.disabled = state.plots < unit.plot || state.leaves < unitCost(unit); });
-  if (now - lastFloat >= 2000) { floatingHarvest(); lastFloat = now; }
+  const balance = document.querySelector('#upgrade-leaves');
+  if (balance && activeScreen === 'upgrades') balance.textContent = fmt(state.leaves);
+  if (activeScreen === 'upgrades') {
+    document.querySelectorAll('[data-boost]').forEach(button => {
+      const boost = BOOSTS.find(entry => entry.id === button.dataset.boost);
+      button.disabled = state.boosts[boost.id] >= 20 || state.leaves < getBoostCost(boost);
+    });
+  }
+  if (activeScreen === 'garden') {
+    if (activeTab === 'heroes') {
+      content.querySelectorAll('[data-upgrade]').forEach(button => {
+        const hero = HEROES.find(h => h.id === button.dataset.upgrade);
+        button.disabled = state.leaves < getUpgradeCost(hero);
+      });
+      content.querySelectorAll('[data-recruit]').forEach(button => {
+        const hero = HEROES.find(h => h.id === button.dataset.recruit);
+        button.disabled = hero.plot >= state.plots || state.leaves < hero.unlockCost;
+      });
+      const plotButton = content.querySelector('[data-plot]');
+      if (plotButton) plotButton.disabled = state.plots >= HEROES.length || state.leaves < getNextPlotCost();
+    }
+    if (activeTab === 'legion') {
+      content.querySelectorAll('[data-recruit-unit]').forEach(button => {
+        const unit = UNITS.find(entry => entry.id === button.dataset.recruitUnit);
+        button.disabled = state.plots < unit.plot || state.leaves < getUnitCost(unit);
+      });
+    }
+    if (now - lastFloat >= 2000) { floatingHarvest(); lastFloat = now; }
+  }
 }
 
 renderAll();
@@ -488,8 +448,25 @@ import('./visuals.js').then(({ initVisuals }) => {
   visuals = initVisuals({ heroes: HEROES, getState: () => state, getScreen: () => activeScreen, getMotion: () => state.settings.motion });
   applySettings();
 }).catch(error => console.warn('Animated scenes could not load; static characters remain available.', error));
-if (offlineSeconds > 5) toast(`Welcome back! Your heroes gathered ${fmt(lps() * offlineSeconds)} leaves while you were away.`);
+if (offlineSeconds > 5) toast(`Welcome back! Your heroes gathered ${fmt(getLps() * offlineSeconds)} leaves while you were away.`);
 setInterval(tick, 100);
 setInterval(save, 5000);
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else { const now = Date.now(); const elapsed = Math.min(8 * 60 * 60, (now - lastTick) / 1000); const gained = lps() * elapsed; state.leaves += gained; state.totalHarvested += gained; advanceCombat(elapsed); lastTick = now; renderAll(); if (elapsed > 5) toast(`Your heroes gathered ${fmt(gained)} leaves while you were away.`); } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    save();
+  } else {
+    const now = Date.now();
+    const elapsed = Math.min(8 * 60 * 60, Math.max(0, (now - lastTick) / 1000));
+    lastTick = now;
+    if (elapsed > 0) {
+      const gained = getLps() * elapsed;
+      state.leaves += gained;
+      state.totalHarvested += gained;
+      advanceCombat(state, elapsed);
+      save();
+      renderAll();
+      if (elapsed > 5) toast(`Your heroes gathered ${fmt(gained)} leaves while you were away.`);
+    }
+  }
+});
 window.addEventListener('pagehide', save);

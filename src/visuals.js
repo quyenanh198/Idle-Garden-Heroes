@@ -172,12 +172,13 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       if (getScreen() !== 'garden') this.scene.pause();
     }
     sync() {
+      if (getScreen() !== 'garden' || !gardenParent.clientWidth) return;
       this.characters.forEach(character => { this.tweens.killTweensOf(character); character.destroy(); });
       this.characters.clear();
       heroes.forEach(hero => {
         if (!getState().heroes[hero.id]) return;
         const art = gardenParent.querySelector(`[data-select="${hero.id}"] .hero-art`);
-        if (!art) return;
+        if (!art || !art.clientWidth) return;
         const { x, y } = positionIn(art, gardenParent);
         const sprite = drawHero(this, hero, x, y + 4, Math.min(0.83, art.clientWidth / 120));
         this.characters.set(hero.id, sprite);
@@ -209,6 +210,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       this.time.timeScale = getMotion() ? 1 : 0;
     }
     sync() {
+      if (getScreen() !== 'combat' || !combatParent.clientWidth) return;
       this.characters.forEach(character => { this.tweens.killTweensOf(character); character.destroy(); });
       this.characters = [];
       if (this.enemy) { this.tweens.killTweensOf(this.enemy); this.enemy.destroy(); }
@@ -251,6 +253,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
     attack() {
       if (getScreen() !== 'combat' || !this.enemy || !this.characters.length) return;
       const source = this.characters[Phaser.Math.Between(0, this.characters.length - 1)];
+      if (!source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
       const spark = this.add.ellipse(source.x + 15, source.y - 12, 17, 9, 0xf8d77a).setRotation(-0.6);
       this.tweens.add({ targets: spark, x: this.enemy.x - 17, y: this.enemy.y - 6, rotation: 4, duration: 360, ease: 'Sine.easeIn', onComplete: () => {
         spark.destroy();
@@ -270,10 +273,12 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
     combatGame = new Phaser.Game({ type: Phaser.CANVAS, parent: combatParent, width: combatParent.clientWidth || 800, height: combatParent.clientHeight || 300, transparent: true, scene: CombatScene, audio: { noAudio: true }, render: { antialias: true } });
   };
   const resize = () => {
-    gardenGame.scale.resize(gardenParent.clientWidth || 800, gardenParent.clientHeight || 250);
-    gardenScene?.sync();
-    if (combatGame && getScreen() === 'combat') {
-      combatGame.scale.resize(combatParent.clientWidth || 800, combatParent.clientHeight || 300);
+    if (getScreen() === 'garden' && gardenParent.clientWidth > 0) {
+      gardenGame.scale.resize(gardenParent.clientWidth, gardenParent.clientHeight);
+      gardenScene?.sync();
+    }
+    if (combatGame && getScreen() === 'combat' && combatParent.clientWidth > 0) {
+      combatGame.scale.resize(combatParent.clientWidth, combatParent.clientHeight);
       combatScene?.sync();
     }
   };
@@ -295,11 +300,22 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       if (screen === 'combat') {
         ensureCombat();
         gardenGame.scene.pause('garden');
-        requestAnimationFrame(() => { combatGame.scale.resize(combatParent.clientWidth, combatParent.clientHeight); combatGame.scene.resume('combat'); combatScene?.sync(); });
+        requestAnimationFrame(() => {
+          const w = combatParent.clientWidth || 800;
+          const h = combatParent.clientHeight || 300;
+          combatGame.scale.resize(w, h);
+          combatGame.scene.resume('combat');
+          combatScene?.sync();
+        });
       } else if (screen === 'garden') {
         if (combatGame) combatGame.scene.pause('combat');
         gardenGame.scene.resume('garden');
-        requestAnimationFrame(resize);
+        requestAnimationFrame(() => {
+          const w = gardenParent.clientWidth || 800;
+          const h = gardenParent.clientHeight || 250;
+          gardenGame.scale.resize(w, h);
+          gardenScene?.sync();
+        });
       } else {
         if (combatGame) combatGame.scene.pause('combat');
         gardenGame.scene.pause('garden');

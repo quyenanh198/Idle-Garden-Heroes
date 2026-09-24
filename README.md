@@ -6,12 +6,13 @@ A mobile-friendly idle garden game built with Vite, Tailwind CSS, vanilla JavaSc
 
 ```bash
 npm install
+npm test
 npm run dev
 ```
 
-Open the local URL printed by Vite. For a production build, run `npm run build`.
+Open the local URL printed by Vite. For running unit tests, run `npm test`. For a production build, run `npm run build`.
 
-GitHub Actions runs `npm ci` and `npm run build` on pushes and pull requests to `main`. The workflow can also be run manually from the Actions tab.
+GitHub Actions runs `npm ci`, `npm test`, and `npm run build` on pushes and pull requests to `main`. See [AUDIT.md](AUDIT.md) for architectural review and audit details.
 
 The app opens on a **Home** screen with access to five destinations:
 
