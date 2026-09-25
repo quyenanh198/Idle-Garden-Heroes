@@ -19,6 +19,14 @@ try {
   for (const screen of ['garden', 'combat']) {
     await page.click(`.mobile-dock [data-screen="${screen}"]`);
     await new Promise(resolve => setTimeout(resolve, 900));
+    if (screen === 'combat') {
+      const layout = await page.evaluate(() => ({
+        actionTop: document.querySelector('.battle-arena').getBoundingClientRect().top,
+        dungeonTop: document.querySelector('.dungeon-explorer').getBoundingClientRect().top,
+        portraitSize: getComputedStyle(document.querySelector('.squad-portraits .atlas-portrait')).backgroundSize,
+      }));
+      if (layout.actionTop >= layout.dungeonTop || layout.portraitSize !== '500% 400%') throw new Error(`Combat layout regression: ${JSON.stringify(layout)}`);
+    }
     const frame = await page.evaluate(async () => {
       const intervals = [];
       let previous = 0;

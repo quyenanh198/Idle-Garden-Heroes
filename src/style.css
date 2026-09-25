@@ -33,7 +33,7 @@
 .battle-squad-banner small{font-size:9px;font-weight:800;letter-spacing:1.6px;color:#d3e9bf}
 .battle-squad-banner strong{font:600 19px Fredoka,sans-serif}
 .squad-portraits{display:flex;align-items:center;flex:1;padding-left:7px}
-.squad-portraits span{display:block;width:45px;height:45px;margin-left:-7px;border:2px solid #eef9db;border-radius:50%;background:#dcecc5;overflow:hidden;box-shadow:0 3px 7px #1d3f2766}
+.squad-portraits>span{display:block;width:45px;height:45px;margin-left:-7px;border:2px solid #eef9db;border-radius:50%;background:#dcecc5;overflow:hidden;box-shadow:0 3px 7px #1d3f2766}
 .squad-portraits img{width:100%;height:100%;object-fit:cover;object-position:center 28%;transform:scale(1.55)}
 .team-attack-callout{white-space:nowrap;background:#f9ecac;color:#5d6731;border-radius:30px;padding:9px 13px;font-size:10px;font-weight:900;letter-spacing:1px}
 .battle-arena{grid-template-columns:minmax(0,1.8fr) 66px minmax(0,1fr);min-height:355px;padding:18px 5% 8px;gap:8px}
@@ -844,3 +844,12 @@
 @keyframes spore-approach{from{transform:translateX(60px) scale(.25);opacity:.35}to{transform:translateX(-130px) scale(1.45);opacity:1}}
 @media(max-width:650px){.dungeon-explorer{grid-template-columns:1fr;margin:9px;padding:8px}.dungeon-sidebar{display:grid;grid-template-columns:1fr 1fr;align-items:center}.dungeon-map{grid-row:span 3;width:130px;justify-self:end}.dungeon-keys{grid-column:1;grid-row:3}.dungeon-sidebar>span{font-size:9px}}
 .atlas-portrait{display:block;width:100%;height:100%;min-width:100%;min-height:100%;background-repeat:no-repeat;background-size:500% 400%}
+.squad-portraits .atlas-portrait{width:100%;height:100%;background-size:500% 400%}
+.dungeon-explorer{grid-template-columns:minmax(0,1fr) 208px;align-items:stretch;margin:10px 16px 6px;padding:9px}
+.dungeon-view canvas{height:245px;aspect-ratio:auto}
+.dungeon-view::after{content:'';position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 42px 15px #0f1e1ccc}
+.dungeon-sidebar{justify-content:center}.dungeon-map{width:158px}
+.dungeon-encounter{position:absolute;left:50%;top:52%;width:118px;height:118px;transform:translate(-50%,-50%);pointer-events:none;filter:drop-shadow(0 12px 9px #07130a99);animation:dungeon-foe 2.8s ease-in-out infinite}
+.dungeon-enemy-art{display:block;width:100%;height:100%;background-repeat:no-repeat;background-size:500% 400%}
+@keyframes dungeon-foe{0%,100%{transform:translate(-50%,-49%) scale(.97)}50%{transform:translate(-50%,-54%) scale(1.04)}}
+@media(max-width:650px){.dungeon-explorer{grid-template-columns:1fr;margin:8px;padding:7px}.dungeon-view canvas{height:190px}.dungeon-encounter{width:87px;height:87px}.dungeon-sidebar{display:grid;justify-content:stretch}.dungeon-map{width:130px}}

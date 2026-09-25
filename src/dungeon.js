@@ -67,7 +67,11 @@ export function renderDungeonMap(dungeon) {
   return DUNGEON_ROWS.map((row, y) => [...row].map((cell, x) => {
     const key = `${x},${y}`;
     if (key === current) return `<span class="dungeon-tile player" aria-label="Party facing ${FACING[dungeon.facing]}">${arrows[dungeon.facing]}</span>`;
-    if (!seen.has(key)) return '<span class="dungeon-tile fog" aria-label="Unexplored">?</span>';
+    const visible = seen.has(key) || [...seen].some(visited => {
+      const [vx, vy] = visited.split(',').map(Number);
+      return Math.abs(vx - x) + Math.abs(vy - y) === 1;
+    });
+    if (!visible) return '<span class="dungeon-tile fog" aria-label="Unexplored">?</span>';
     if (cell === '#') return '<span class="dungeon-tile wall" aria-label="Wall"></span>';
     const landmark = LANDMARKS[key];
     const icon = { chest: '🎁', trap: '⚠', stairs: '↧', boss: '♛' }[landmark] || '·';
@@ -88,6 +92,10 @@ export function paintCorridor(canvas, dungeon, tick = 0) {
     ctx.beginPath(); ctx.moveTo(...points[0]); points.slice(1).forEach(point => ctx.lineTo(...point)); ctx.closePath();
     ctx.fillStyle = fill; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = stroke; ctx.stroke();
   };
+  const line = (points, color = '#839074', width = 1.5) => {
+    ctx.beginPath(); ctx.moveTo(...points[0]); points.slice(1).forEach(point => ctx.lineTo(...point));
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+  };
   for (let layer = 0; layer <= Math.min(depth, 4); layer++) {
     const outer = layer === 0 ? 0 : 1 - 1 / (layer + .35);
     const inner = 1 - 1 / (layer + 1.35);
@@ -97,9 +105,28 @@ export function paintCorridor(canvas, dungeon, tick = 0) {
     quad([[right, top], [ir, it], [ir, ib], [right, bottom]], layer % 2 ? '#354237' : '#415042');
     quad([[left, bottom], [il, ib], [ir, ib], [right, bottom]], '#5b5944');
     quad([[left, top], [il, it], [ir, it], [right, top]], '#28372f');
+    for (let joint = 1; joint <= 3; joint++) {
+      const part = joint / 4;
+      line([[left, top + (bottom - top) * part], [il, it + (ib - it) * part]], '#69745a', 1.2);
+      line([[ir, it + (ib - it) * part], [right, top + (bottom - top) * part]], '#596956', 1.2);
+    }
+    line([[(left + il) / 2, (top + it) / 2], [(left + il) / 2, (bottom + ib) / 2]], '#69745a', 1);
+    line([[(right + ir) / 2, (top + it) / 2], [(right + ir) / 2, (bottom + ib) / 2]], '#596956', 1);
+    line([[left, bottom], [w / 2, h * .62], [right, bottom]], '#a19266', 1.3);
+    line([[left, top], [il, it], [ir, it], [right, top]], '#9e8a5b', 2.5);
   }
   const scale = 1 / (depth + 1.2);
   quad([[w * (.5 - scale / 2), h * (.5 - scale / 2)], [w * (.5 + scale / 2), h * (.5 - scale / 2)], [w * (.5 + scale / 2), h * (.5 + scale / 2)], [w * (.5 - scale / 2), h * (.5 + scale / 2)]], '#465243', '#a48759');
+  for (let x = .15; x < 1; x += .175) line([[w * x, h], [w / 2 + (x - .5) * w * .1, h * .62]], '#b2a16e66', 1);
+  const lantern = (x, y) => {
+    const halo = ctx.createRadialGradient(x, y, 2, x, y, 42);
+    halo.addColorStop(0, `rgba(255,217,128,${.5 * glow})`); halo.addColorStop(1, 'rgba(255,180,64,0)');
+    ctx.fillStyle = halo; ctx.fillRect(x - 42, y - 42, 84, 84);
+    ctx.fillStyle = '#ffd27d'; ctx.fillRect(x - 3, y - 11, 6, 16);
+    ctx.fillStyle = '#6a5638'; ctx.fillRect(x - 8, y + 4, 16, 4);
+  };
+  lantern(w * .15, h * .47);
+  lantern(w * .85, h * .47);
   const torch = ctx.createRadialGradient(w * .5, h * .38, 6, w * .5, h * .38, w * .58);
   torch.addColorStop(0, `rgba(255,190,92,${.31 * glow})`); torch.addColorStop(1, 'rgba(255,190,92,0)');
   ctx.fillStyle = torch; ctx.fillRect(0, 0, w, h);
