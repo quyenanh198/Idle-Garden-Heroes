@@ -1,17 +1,38 @@
 import Phaser from 'phaser';
 import { playHeroAttack, playEnemyAttack, playHit } from './audio.js';
-import { combatPower, enemyDamage } from './game-engine.js';
+import { combatPower, enemyDamage, enemyForWave, HERO_IMAGES, ENEMY_IMAGES, UNITS } from './game-engine.js';
+import { fmt } from './format.js';
 
-const fmt = (n) => !Number.isFinite(n) || n < 0 ? '0' : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
+const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
+const assetMap = (images) => Object.fromEntries(Object.entries(images).map(([id, file]) => [id, `${ASSET_BASE}${file}.webp`]));
+const HERO_ASSETS = assetMap(HERO_IMAGES);
+const ENEMY_ASSETS = assetMap(ENEMY_IMAGES);
 
-const HERO_ASSETS = {
-  sprout: '/assets/sprout-knight.webp', rose: '/assets/rose-mage.webp', oak: '/assets/oak-sentinel.webp',
-  daisy: '/assets/daisy-dancer.webp', moss: '/assets/moss-golem.webp', sunflower: '/assets/sunflower-sage.webp',
-};
-const ENEMY_ASSETS = {
-  mushroom: '/assets/grumpy-mushroom.webp', bramble: '/assets/thorny-bramble.webp', slime: '/assets/slime-sprig.webp',
-  wasp: '/assets/wild-wasp.webp', boss: '/assets/shadow-stump.webp',
-};
+function loadImages(scene, prefix, assets) {
+  Object.entries(assets).forEach(([id, path]) => {
+    if (!scene.textures.exists(`${prefix}-${id}`)) scene.load.image(`${prefix}-${id}`, path);
+  });
+}
+
+// Short-lived effects (particles, damage text, flashes) are tracked so they can be
+// destroyed at once when motion is turned off; otherwise frozen tweens leave them on screen.
+function spawnFx(scene, obj, tween) {
+  scene.fx.add(obj);
+  scene.tweens.add({
+    targets: obj,
+    ...tween,
+    onComplete: () => {
+      scene.fx.delete(obj);
+      obj.destroy();
+      tween.onComplete?.();
+    },
+  });
+  return obj;
+}
+function clearFx(scene) {
+  scene.fx?.forEach(obj => { scene.tweens.killTweensOf(obj); obj.destroy(); });
+  scene.fx?.clear();
+}
 
 const PALETTES = {
   sprout: { body: 0x6da75c, dark: 0x3e7545, light: 0xb7db78, accent: 0xe6c46b },
@@ -155,9 +176,12 @@ function drawEnemy(scene, type, x, y) {
 export function initVisuals({ heroes, getState, getScreen, getMotion }) {
   const gardenParent = document.querySelector('#garden-grid');
   const combatParent = document.querySelector('.battle-arena');
-  let gardenScene;
-  let combatScene;
-  let combatGame;
+  const parents = { garden: gardenParent, combat: combatParent };
+  const fallbackSize = { garden: [800, 250], combat: [800, 300] };
+  const scenes = {};
+  const requested = new Set(['garden']);
+  const canAnimate = () => getMotion();
+  const isStalled = () => !!getState()?.battle?.stalled;
 
   const positionIn = (element, parent) => {
     const a = element.getBoundingClientRect();
@@ -166,16 +190,17 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
   };
 
   class GardenScene extends Phaser.Scene {
-    constructor() { super('garden'); }
-    preload() { Object.entries(HERO_ASSETS).forEach(([id, path]) => this.load.image(`hero-${id}`, path)); }
+    constructor() { super({ key: 'garden', active: true }); }
+    preload() { loadImages(this, 'hero', HERO_ASSETS); }
     create() {
-      gardenScene = this;
+      scenes.garden = this;
       this.characters = new Map();
+      this.fx = new Set();
       document.body.classList.add('phaser-garden-ready');
-      this.sync();
       this.tweens.timeScale = getMotion() ? 1 : 0;
       this.time.timeScale = getMotion() ? 1 : 0;
-      if (getScreen() !== 'garden') this.scene.pause();
+      if (getScreen() !== 'garden') this.scene.sleep();
+      else this.sync();
     }
     sync() {
       if (getScreen() !== 'garden' || !gardenParent.clientWidth) return;
@@ -191,23 +216,27 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       });
     }
     harvest() {
+      if (!canAnimate()) return;
       this.characters.forEach(character => {
         for (let i = 0; i < 3; i++) {
           const leaf = this.add.ellipse(character.x + Phaser.Math.Between(-18, 18), character.y - 8, 10, 6, 0x91c96c).setRotation(-0.6);
-          this.tweens.add({ targets: leaf, x: leaf.x + Phaser.Math.Between(-23, 23), y: leaf.y - Phaser.Math.Between(35, 65), alpha: 0, angle: Phaser.Math.Between(-80, 80), duration: 850 + i * 100, onComplete: () => leaf.destroy() });
+          spawnFx(this, leaf, { x: leaf.x + Phaser.Math.Between(-23, 23), y: leaf.y - Phaser.Math.Between(35, 65), alpha: 0, angle: Phaser.Math.Between(-80, 80), duration: 850 + i * 100 });
         }
       });
     }
     tapHero(heroId) {
+      if (!canAnimate()) return;
       const sprite = this.characters.get(heroId);
       if (!sprite || !sprite.active) return;
       this.tweens.killTweensOf(sprite);
       const origX = sprite.x;
       const origY = sprite.y;
+      const baseScaleX = sprite.scaleX;
+      const baseScaleY = sprite.scaleY;
       this.tweens.add({
         targets: sprite,
-        scaleX: sprite.scaleX * 1.25,
-        scaleY: sprite.scaleY * 0.78,
+        scaleX: baseScaleX * 1.25,
+        scaleY: baseScaleY * 0.78,
         y: origY + 4,
         duration: 90,
         yoyo: true,
@@ -215,8 +244,8 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         onComplete: () => {
           this.tweens.add({
             targets: sprite,
-            scaleX: sprite.scaleX * 0.96,
-            scaleY: sprite.scaleY * 1.12,
+            scaleX: baseScaleX * 0.96,
+            scaleY: baseScaleY * 1.12,
             y: origY - 6,
             duration: 110,
             yoyo: true,
@@ -229,29 +258,28 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         const angle = (i / 6) * Math.PI * 2;
         const dist = Phaser.Math.Between(30, 52);
         const particle = this.add.ellipse(origX, origY - 12, 8, 5, i % 2 ? 0x95d66b : 0xf7b3c2);
-        this.tweens.add({
-          targets: particle,
+        spawnFx(this, particle, {
           x: origX + Math.cos(angle) * dist,
           y: origY - 22 + Math.sin(angle) * dist,
           alpha: 0,
           scale: 0.3,
           duration: 500,
           ease: 'Quad.easeOut',
-          onComplete: () => particle.destroy(),
         });
       }
     }
   }
 
   class CombatScene extends Phaser.Scene {
-    constructor() { super('combat'); }
+    constructor() { super({ key: 'combat', active: false }); }
     preload() {
-      Object.entries(HERO_ASSETS).forEach(([id, path]) => this.load.image(`hero-${id}`, path));
-      Object.entries(ENEMY_ASSETS).forEach(([id, path]) => this.load.image(`enemy-${id}`, path));
+      loadImages(this, 'hero', HERO_ASSETS);
+      loadImages(this, 'enemy', ENEMY_ASSETS);
     }
     create() {
-      combatScene = this;
+      scenes.combat = this;
       this.characters = [];
+      this.fx = new Set();
       document.body.classList.add('phaser-combat-ready');
       this.sync();
       this.time.addEvent({ delay: 850, loop: true, callback: () => this.attack() });
@@ -283,25 +311,22 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         const scale = owned.length > 3 ? (compact ? 0.5 : 0.68) : owned.length > 1 ? (compact ? 0.64 : 0.8) : 0.9;
         this.characters.push(drawHero(this, hero, x, y, scale));
       });
-      const troops = [
-        { id: 'scout', emoji: '🌱' }, { id: 'archer', emoji: '🌸' }, { id: 'guardian', emoji: '🌳' },
-      ].filter(unit => state.legion?.[unit.id] > 0);
+      const troops = UNITS.filter(unit => state.legion?.[unit.id] > 0);
       troops.forEach((unit, i) => {
         const x = legion.x + (i - (troops.length - 1) / 2) * (combatParent.clientWidth < 550 ? 35 : 49);
         const y = legion.y + (owned.length > 3 ? 63 : 55);
         const sprite = this.add.container(x, y);
         const orb = this.add.circle(0, 0, 16, 0xf7fbea, 0.95).setStrokeStyle(2, 0xa9cf91);
         const symbol = this.add.text(0, -2, unit.emoji, { fontSize: '23px' }).setOrigin(.5);
-        const count = this.add.text(12, 14, `×${state.legion[unit.id]}`, { fontFamily: 'Arial', fontSize: '10px', fontStyle: 'bold', color: '#315c39', backgroundColor: '#ffffff' }).setOrigin(.5);
+        const count = this.add.text(12, 14, `×${fmt(state.legion[unit.id])}`, { fontFamily: 'Arial', fontSize: '10px', fontStyle: 'bold', color: '#315c39', backgroundColor: '#ffffff' }).setOrigin(.5);
         sprite.add([orb, symbol, count]);
         this.tweens.add({ targets: sprite, y: y - 4, duration: 1000 + i * 170, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
         this.characters.push(sprite);
       });
-      const enemyType = ['mushroom', 'bramble', 'slime', 'wasp', 'boss'][(state.battle.wave - 1) % 5];
-      this.enemy = drawEnemy(this, enemyType, enemy.x, enemy.y);
+      this.enemy = drawEnemy(this, enemyForWave(state.battle.wave).tint, enemy.x, enemy.y);
     }
     showDamage(text, isCrit = false, isParty = false) {
-      if (getScreen() !== 'combat') return;
+      if (getScreen() !== 'combat' || !canAnimate()) return;
       const targetX = isParty ? (this.characters[0]?.x || 160) : (this.enemy?.x || 500);
       const targetY = isParty ? (this.characters[0]?.y || 140) - 25 : (this.enemy?.y || 135) - 40;
       const color = isParty ? '#f57474' : (isCrit ? '#ffde59' : '#ffffff');
@@ -315,19 +340,18 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         strokeThickness: 3,
       }).setOrigin(0.5);
 
-      this.tweens.add({
-        targets: txt,
+      spawnFx(this, txt, {
         y: txt.y - (isCrit ? 42 : 30),
         scaleX: isCrit ? 1.2 : 1.05,
         scaleY: isCrit ? 1.2 : 1.05,
         alpha: 0,
         duration: isCrit ? 800 : 650,
         ease: 'Cubic.easeOut',
-        onComplete: () => txt.destroy(),
       });
     }
     attack() {
-      if (getScreen() !== 'combat' || !this.enemy || !this.characters.length) return;
+      // A stalled battle deals no real damage, so don't show fake hits either.
+      if (getScreen() !== 'combat' || !canAnimate() || isStalled() || !this.enemy || !this.characters.length) return;
       const source = this.characters[Phaser.Math.Between(0, this.characters.length - 1)];
       if (!source || !Number.isFinite(source.x) || !Number.isFinite(source.y)) return;
 
@@ -337,8 +361,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       const projColor = colors[source.heroId] || 0xf8d77a;
 
       const spark = this.add.ellipse(source.x + 15, source.y - 12, 16, 9, projColor).setRotation(-0.6);
-      this.tweens.add({ targets: spark, x: this.enemy.x - 17, y: this.enemy.y - 6, rotation: 4, duration: 340, ease: 'Sine.easeIn', onComplete: () => {
-        spark.destroy();
+      spawnFx(this, spark, { x: this.enemy.x - 17, y: this.enemy.y - 6, rotation: 4, duration: 340, ease: 'Sine.easeIn', onComplete: () => {
         playHit();
 
         const st = getState();
@@ -351,12 +374,12 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
         this.tweens.add({ targets: this.enemy, scaleX: this.enemy.scaleX * 1.12, scaleY: this.enemy.scaleY * 0.87, duration: 100, yoyo: true, ease: 'Sine.easeOut' });
         for (let i = 0; i < 5; i++) {
           const particle = this.add.circle(this.enemy.x, this.enemy.y - 8, Phaser.Math.Between(3, 6), i % 2 ? 0xf0c879 : projColor);
-          this.tweens.add({ targets: particle, x: particle.x + Phaser.Math.Between(-42, 42), y: particle.y + Phaser.Math.Between(-35, 30), alpha: 0, duration: 430, onComplete: () => particle.destroy() });
+          spawnFx(this, particle, { x: particle.x + Phaser.Math.Between(-42, 42), y: particle.y + Phaser.Math.Between(-35, 30), alpha: 0, duration: 430 });
         }
       } });
     }
     enemyAttack() {
-      if (getScreen() !== 'combat' || !this.enemy || !this.characters.length) return;
+      if (getScreen() !== 'combat' || !canAnimate() || isStalled() || !this.enemy || !this.characters.length) return;
       playEnemyAttack();
       const origX = this.enemy.x;
       this.tweens.add({
@@ -370,14 +393,12 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       const target = this.characters[Phaser.Math.Between(0, this.characters.length - 1)];
       if (!target) return;
       const spore = this.add.circle(this.enemy.x - 20, this.enemy.y, 7, 0x8a554a);
-      this.tweens.add({
-        targets: spore,
+      spawnFx(this, spore, {
         x: target.x + 15,
         y: target.y,
         duration: 320,
         ease: 'Sine.easeIn',
         onComplete: () => {
-          spore.destroy();
           playHit();
           const wave = getState()?.battle?.wave || 1;
           const dmg = Math.max(1, Math.round(enemyDamage(wave)));
@@ -389,88 +410,106 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       });
     }
     triggerUltimate() {
-      if (getScreen() !== 'combat') return;
+      if (getScreen() !== 'combat' || !canAnimate()) return;
       const width = combatParent.clientWidth || 800;
       const height = combatParent.clientHeight || 300;
       const flash = this.add.rectangle(width / 2, height / 2, width, height, 0xfff9db, 0.6);
-      this.tweens.add({ targets: flash, alpha: 0, duration: 550, onComplete: () => flash.destroy() });
+      spawnFx(this, flash, { alpha: 0, duration: 550 });
 
       for (let i = 0; i < 24; i++) {
         const angle = (i / 24) * Math.PI * 2;
         const dist = Phaser.Math.Between(70, 200);
         const p = this.add.circle(width / 2, height / 2, Phaser.Math.Between(4, 9), i % 2 ? 0xffdf6d : 0xffffff);
-        this.tweens.add({
-          targets: p,
+        spawnFx(this, p, {
           x: width / 2 + Math.cos(angle) * dist,
           y: height / 2 + Math.sin(angle) * dist,
           alpha: 0,
           scale: 0.2,
           duration: 750,
           ease: 'Quad.easeOut',
-          onComplete: () => p.destroy(),
         });
       }
     }
   }
 
-  const gardenGame = new Phaser.Game({ type: Phaser.CANVAS, parent: gardenParent, width: gardenParent.clientWidth || 800, height: gardenParent.clientHeight || 250, transparent: true, scene: GardenScene, audio: { noAudio: true }, render: { antialias: true } });
-  const ensureCombat = () => {
-    if (combatGame) return;
-    combatGame = new Phaser.Game({ type: Phaser.CANVAS, parent: combatParent, width: combatParent.clientWidth || 800, height: combatParent.clientHeight || 300, transparent: true, scene: CombatScene, audio: { noAudio: true }, render: { antialias: true } });
+  // One Phaser game drives both screens; its canvas moves to whichever screen is visible.
+  const [initialWidth, initialHeight] = fallbackSize.garden;
+  const game = new Phaser.Game({
+    type: Phaser.CANVAS,
+    parent: gardenParent,
+    width: gardenParent.clientWidth || initialWidth,
+    height: gardenParent.clientHeight || initialHeight,
+    transparent: true,
+    scene: [GardenScene, CombatScene],
+    audio: { noAudio: true },
+    banner: false,
+    render: { antialias: true },
+  });
+
+  // Re-attach the canvas if a render replaced the parent's innerHTML, then fit it to the parent.
+  const attachTo = (screen) => {
+    const parent = parents[screen];
+    if (!parent || !game.canvas) return false;
+    if (game.canvas.parentElement !== parent) parent.appendChild(game.canvas);
+    const [w, h] = fallbackSize[screen];
+    game.scale.resize(parent.clientWidth || w, parent.clientHeight || h);
+    return true;
   };
+
+  const sleepScene = (key) => {
+    if (game.scene.isActive(key) || game.scene.isPaused(key)) game.scene.sleep(key);
+  };
+
+  const show = (screen) => {
+    if (!game.isBooted) { game.events.once('ready', () => show(getScreen())); return; }
+    if (!parents[screen]) { sleepScene('garden'); sleepScene('combat'); return; }
+    sleepScene(screen === 'garden' ? 'combat' : 'garden');
+    requestAnimationFrame(() => {
+      if (getScreen() !== screen) return;
+      attachTo(screen);
+      if (!requested.has(screen)) {
+        requested.add(screen);
+        game.scene.start(screen);
+        return;
+      }
+      if (game.scene.isSleeping(screen)) game.scene.wake(screen);
+      scenes[screen]?.sync();
+    });
+  };
+
   const resize = () => {
-    if (getScreen() === 'garden' && gardenParent.clientWidth > 0) {
-      gardenGame.scale.resize(gardenParent.clientWidth, gardenParent.clientHeight);
-      gardenScene?.sync();
-    }
-    if (combatGame && getScreen() === 'combat' && combatParent.clientWidth > 0) {
-      combatGame.scale.resize(combatParent.clientWidth, combatParent.clientHeight);
-      combatScene?.sync();
-    }
+    const screen = getScreen();
+    if (!parents[screen] || !parents[screen].clientWidth) return;
+    if (attachTo(screen)) scenes[screen]?.sync();
   };
   const observer = new ResizeObserver(() => requestAnimationFrame(resize));
   observer.observe(gardenParent);
   observer.observe(combatParent);
 
+  const syncScreen = (screen) => requestAnimationFrame(() => {
+    if (getScreen() !== screen) return;
+    attachTo(screen);
+    scenes[screen]?.sync();
+  });
+
   const api = {
-    syncGarden: () => requestAnimationFrame(() => gardenScene?.sync()),
-    syncCombat: () => requestAnimationFrame(() => combatScene?.sync()),
-    harvest: () => gardenScene?.harvest(),
-    tapHero: (heroId) => gardenScene?.tapHero(heroId),
-    showCombatDamage: (text, isCrit, isParty) => combatScene?.showDamage(text, isCrit, isParty),
-    triggerUltimate: () => combatScene?.triggerUltimate(),
+    syncGarden: () => syncScreen('garden'),
+    syncCombat: () => syncScreen('combat'),
+    harvest: () => scenes.garden?.harvest(),
+    tapHero: (heroId) => scenes.garden?.tapHero(heroId),
+    showCombatDamage: (text, isCrit, isParty) => scenes.combat?.showDamage(text, isCrit, isParty),
+    triggerUltimate: () => scenes.combat?.triggerUltimate(),
     setMotion: (enabled) => {
-      [gardenScene, combatScene].filter(Boolean).forEach(scene => {
+      Object.values(scenes).forEach(scene => {
         scene.tweens.timeScale = enabled ? 1 : 0;
         scene.time.timeScale = enabled ? 1 : 0;
+        if (!enabled) clearFx(scene);
       });
+      // Redraw so sprites caught mid-squash return to their resting pose.
+      if (!enabled && scenes[getScreen()]) scenes[getScreen()].sync();
     },
-    show: (screen) => {
-      if (screen === 'combat') {
-        ensureCombat();
-        gardenGame.scene.pause('garden');
-        requestAnimationFrame(() => {
-          const w = combatParent.clientWidth || 800;
-          const h = combatParent.clientHeight || 300;
-          combatGame.scale.resize(w, h);
-          combatGame.scene.resume('combat');
-          combatScene?.sync();
-        });
-      } else if (screen === 'garden') {
-        if (combatGame) combatGame.scene.pause('combat');
-        gardenGame.scene.resume('garden');
-        requestAnimationFrame(() => {
-          const w = gardenParent.clientWidth || 800;
-          const h = gardenParent.clientHeight || 250;
-          gardenGame.scale.resize(w, h);
-          gardenScene?.sync();
-        });
-      } else {
-        if (combatGame) combatGame.scene.pause('combat');
-        gardenGame.scene.pause('garden');
-      }
-    },
+    show,
   };
-  if (getScreen() !== 'garden') requestAnimationFrame(() => api.show(getScreen()));
+  if (getScreen() !== 'garden') requestAnimationFrame(() => show(getScreen()));
   return api;
 }

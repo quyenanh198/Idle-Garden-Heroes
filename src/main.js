@@ -11,6 +11,14 @@ import {
   BIOMES,
   ARTIFACTS,
   MIN_BLOOM_WAVE,
+  MAX_BOOST_LEVEL,
+  artifactBonusText,
+  isAccessoryUnlocked,
+  lifetimeWins,
+  heroLps,
+  heroPower,
+  unitPower,
+  harvestMultiplier,
   troopCount,
   lps,
   combatPower,
@@ -35,8 +43,10 @@ import {
   sanitizeSave,
 } from './game-engine.js';
 
+import { fmt, fmtRate } from './format.js';
 import {
   setSoundEnabled,
+  setVolume,
   playTap,
   playCritTap,
   playUpgrade,
@@ -45,8 +55,12 @@ import {
   playBloom,
 } from './audio.js';
 
-const heroPortrait = (hero) => `<img src="/assets/${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
+const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
+const heroPortrait = (hero) => `<img src="${ASSET_BASE}${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
 const SAVE_KEY = 'idle-garden-hero-v1';
+// The newest tab claims this key; older tabs pause so two tabs never overwrite each other's save.
+const OWNER_KEY = `${SAVE_KEY}-owner`;
+const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 const SCREENS = ['home', 'garden', 'combat', 'bag', 'upgrades', 'settings'];
 const ICONS = {
   leaf: '<path d="M20 4C10 4 4 9 4 17a3 3 0 0 0 3 3c8 0 13-6 13-16Z"/><path d="M4 20c3-5 7-8 12-10"/>',
@@ -60,8 +74,6 @@ const ICONS = {
   check: '<path d="m5 12 4 4L19 6"/>',
 };
 const icon = (name, size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
-const fmt = (n) => !Number.isFinite(n) || n < 0 ? '0' : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
-const fmtRate = (n) => !Number.isFinite(n) || n < 0 ? '0' : n < 10 ? Number(n.toFixed(1)).toString() : fmt(n);
 
 function load() {
   try {
@@ -81,17 +93,28 @@ let lastTick = Date.now();
 let lastFloat = Date.now();
 let toastTimer;
 let resetting = false;
+let pausedByOtherTab = false;
+let lastGardenCount = '';
 const offlineSeconds = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSaved) / 1000));
 const getLps = () => lps(state);
 const getCombatPower = () => combatPower(state);
 const getPartyMaxHp = () => partyMaxHp(state);
 const getTroopCount = () => troopCount(state);
 
+// Applies idle harvest + combat for time away; returns total leaves gained (harvest and battle rewards).
+function catchUp(seconds) {
+  const before = state.leaves;
+  const harvested = getLps() * seconds;
+  state.leaves += harvested;
+  state.totalHarvested += harvested;
+  advanceCombat(state, seconds);
+  return state.leaves - before;
+}
+
+try { localStorage.setItem(OWNER_KEY, TAB_ID); } catch { /* storage unavailable */ }
+let offlineGain = 0;
 if (offlineSeconds > 5) {
-  const earned = getLps() * offlineSeconds;
-  state.leaves += earned;
-  state.totalHarvested += earned;
-  advanceCombat(state, offlineSeconds);
+  offlineGain = catchUp(offlineSeconds);
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
 }
@@ -133,7 +156,7 @@ app.innerHTML = `
     </main>
     <main id="combat-screen" class="screen-view" hidden>
       <section class="combat-intro"><div><div class="eyebrow">✦ &nbsp; THE GLADE NEEDS YOU</div><h1>Defend the <em>garden.</em></h1><p>Your heroes fight automatically while you tend your little world.</p></div><div class="combat-wave-pill">⚔️ &nbsp; WAVE <strong id="wave-label">1</strong></div></section>
-      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status"><span></span> AUTO BATTLE ACTIVE</span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">YOUR LEGION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Legion</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
+      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">YOUR LEGION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Legion</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
       <section class="combat-dashboard"><div class="combat-heading"><div><span class="section-kicker">YOUR ADVENTURE SO FAR</span><h2>Battle camp</h2></div><button class="return-garden" data-screen="garden">Upgrade heroes ${icon('arrow', 17)}</button></div><div class="combat-stat-grid"><div class="combat-stat"><span class="combat-stat-icon">⚔️</span><small>LEGION POWER</small><strong id="combat-power"></strong><p>Damage per second</p></div><div class="combat-stat"><span class="combat-stat-icon">🏆</span><small>WAVES CLEARED</small><strong id="waves-cleared"></strong><p>One victory at a time</p></div><div class="combat-stat"><span class="combat-stat-icon">🍃</span><small>BATTLE LEAVES</small><strong id="battle-earned"></strong><p>Earned from victories</p></div></div><div class="combat-lower"><div class="legion-card"><div class="card-heading"><div><h3>Heroes on the front line</h3><p>Every recruited hero joins the fight</p></div><span class="tiny-badge" id="legion-badge"></span></div><div id="legion-roster"></div></div><div class="battle-tip"><span>🌼</span><div><strong>Stronger roots, stronger heroes.</strong><p>Hero levels boost both Leaf Point production and battle damage. Win waves to earn bonus leaves, then return to the garden to grow your legion.</p></div><button data-screen="garden">Visit your garden ${icon('arrow', 16)}</button></div></div></section>
     </main>
     <main id="bag-screen" class="screen-view utility-screen" hidden><section class="utility-intro"><div><span class="eyebrow">✦ &nbsp; TREASURES FROM THE GLADE</span><h1>Accessories <em>& Bag.</em></h1><p>Win combat waves to discover accessories, then equip one to help your team.</p></div><span class="utility-hero-icon">🎒</span></section><div id="bag-content"></div></main>
@@ -149,7 +172,7 @@ const content = document.querySelector('#tab-content');
 const stage = document.querySelector('#tab-stage');
 
 function save() {
-  if (resetting) return;
+  if (resetting || pausedByOtherTab) return;
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* Game remains playable without storage. */ }
 }
@@ -168,6 +191,7 @@ function applySettings() {
   document.body.classList.toggle('motion-off', !state.settings.motion);
   visuals?.setMotion(state.settings.motion);
   setSoundEnabled(state.settings.sound !== false);
+  setVolume(state.settings.volume / 100);
 }
 
 function renderNumbers() {
@@ -175,7 +199,11 @@ function renderNumbers() {
   document.querySelector('#leaf-count').textContent = fmt(state.leaves);
   document.querySelector('#lps-count').textContent = `+${fmtRate(currentLps)} per second`;
   document.querySelector('#garden-output').textContent = `🍃 ${fmtRate(currentLps)} leaves / sec`;
-  document.querySelector('#garden-count').innerHTML = `${icon('grid', 16)} ${state.plots} / ${HEROES.length} plots open`;
+  const gardenCount = `${state.plots} / ${HEROES.length} plots open`;
+  if (gardenCount !== lastGardenCount) {
+    lastGardenCount = gardenCount;
+    document.querySelector('#garden-count').innerHTML = `${icon('grid', 16)} ${gardenCount}`;
+  }
   renderHomeNumbers();
 }
 function renderHomeNumbers() {
@@ -198,7 +226,7 @@ function renderGrid() {
     const unlocked = !!state.heroes[hero.id];
     if (!open) return `<div class="plot locked-plot" style="--delay:${i * .15}s"><span class="plot-number">PLOT 0${i + 1}</span><div class="locked-center"><span class="lock-orb">${icon('lock', 25)}</span><strong>Sleeping soil</strong><small>Waiting to bloom</small></div><span class="plot-bottom-label">🔒 &nbsp; Locked plot</span></div>`;
     if (!unlocked) return `<button class="plot empty-plot" data-select="${hero.id}" style="--delay:${i * .15}s"><span class="plot-number">PLOT 0${i + 1}</span><div class="empty-center"><span class="empty-orb">${icon('plus', 27)}</span><strong>Room to grow</strong><small>Recruit ${hero.name}</small></div><span class="plot-bottom-label">A new friend awaits</span></button>`;
-    return `<button class="plot hero-plot ${hero.color} ${selectedHero === hero.id ? 'selected' : ''}" data-select="${hero.id}" style="--delay:${i * .15}s"><span class="plot-number">PLOT 0${i + 1}</span><span class="hero-level">LVL ${state.heroes[hero.id]}</span><span class="hero-art"><span class="hero-halo"></span><span class="hero-plant">${hero.plant}</span><span class="hero-emoji">${hero.emoji}</span></span><span class="hero-name">${hero.name}</span><span class="hero-output">${icon('leaf', 14)} ${fmtRate(state.heroes[hero.id] * hero.baseLps)} / sec</span></button>`;
+    return `<button class="plot hero-plot ${hero.color} ${selectedHero === hero.id ? 'selected' : ''}" data-select="${hero.id}" style="--delay:${i * .15}s"><span class="plot-number">PLOT 0${i + 1}</span><span class="hero-level">LVL ${state.heroes[hero.id]}</span><span class="hero-art"><span class="hero-halo"></span><span class="hero-plant">${hero.plant}</span><span class="hero-emoji">${hero.emoji}</span></span><span class="hero-name">${hero.name}</span><span class="hero-output">${icon('leaf', 14)} ${fmtRate(heroLps(state, hero))} / sec</span></button>`;
   }).join('');
   visuals?.syncGarden();
 }
@@ -209,16 +237,16 @@ function renderHeroes() {
   content.innerHTML = `<div class="heroes-layout">
     <div class="hero-list-card"><div class="card-heading"><div><h3>Garden heroes</h3><p>Pick a hero to help them grow</p></div><span class="tiny-badge">${Object.keys(state.heroes).length} / ${HEROES.length} FOUND</span></div><div class="hero-list">${HEROES.map(hero => {
       const owned = !!state.heroes[hero.id]; const open = hero.plot < state.plots;
-      return `<button class="hero-list-item ${selectedHero === hero.id ? 'active' : ''}" data-select="${hero.id}"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><span class="list-copy"><strong>${hero.name}</strong><small>${owned ? `Level ${state.heroes[hero.id]} · ${fmtRate(state.heroes[hero.id] * hero.baseLps)} / sec` : open ? 'Ready to recruit' : 'Unlock the plot first'}</small></span><span class="list-status">${owned ? icon('check', 18) : open ? icon('arrow', 18) : icon('lock', 16)}</span></button>`;
+      return `<button class="hero-list-item ${selectedHero === hero.id ? 'active' : ''}" data-select="${hero.id}"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><span class="list-copy"><strong>${hero.name}</strong><small>${owned ? `Level ${state.heroes[hero.id]} · ${fmtRate(heroLps(state, hero))} / sec` : open ? 'Ready to recruit' : 'Unlock the plot first'}</small></span><span class="list-status">${owned ? icon('check', 18) : open ? icon('arrow', 18) : icon('lock', 16)}</span></button>`;
     }).join('')}</div></div>
-    <div class="detail-stack"><div class="hero-detail-card ${selected.color}"><span class="detail-tag">${selectedOwned ? 'YOUR GARDEN HERO' : selectedOpen ? 'READY TO RECRUIT' : 'FUTURE GARDEN HERO'}</span><div class="detail-main"><span class="detail-avatar">${heroPortrait(selected)}</span><div><h3>${selected.name}</h3><p>${selected.role}</p><span class="detail-rate">${icon('leaf', 16)} ${fmtRate(selected.baseLps)} leaves / sec / level</span></div></div><div class="detail-divider"></div>${selectedOwned ? `<div class="upgrade-row"><div><span class="upgrade-label">CURRENT LEVEL</span><strong>${state.heroes[selected.id]} <span>→ ${state.heroes[selected.id] + 1}</span></strong></div><div><span class="upgrade-label">NEXT HARVEST</span><strong>+${fmtRate((state.heroes[selected.id] + 1) * selected.baseLps)} <span>/ sec</span></strong></div></div><button class="primary-button" data-upgrade="${selected.id}" ${state.leaves < getUpgradeCost(selected) ? 'disabled' : ''}>${icon('spark', 18)} Upgrade hero <span>${icon('leaf', 16)} ${fmt(getUpgradeCost(selected))}</span></button>` : `<div class="recruit-copy">${selectedOpen ? 'Add this hero to your garden and start harvesting together.' : 'Open this garden plot to make room for a new hero.'}</div><button class="primary-button" data-recruit="${selected.id}" ${!selectedOpen || state.leaves < selected.unlockCost ? 'disabled' : ''}>${selectedOpen ? `${icon('plus', 18)} Recruit hero <span>${icon('leaf', 16)} ${fmt(selected.unlockCost)}</span>` : `${icon('lock', 18)} Plot locked`}</button>`}</div>
+    <div class="detail-stack"><div class="hero-detail-card ${selected.color}"><span class="detail-tag">${selectedOwned ? 'YOUR GARDEN HERO' : selectedOpen ? 'READY TO RECRUIT' : 'FUTURE GARDEN HERO'}</span><div class="detail-main"><span class="detail-avatar">${heroPortrait(selected)}</span><div><h3>${selected.name}</h3><p>${selected.role}</p><span class="detail-rate">${icon('leaf', 16)} ${fmtRate(selected.baseLps * harvestMultiplier(state))} leaves / sec / level</span></div></div><div class="detail-divider"></div>${selectedOwned ? `<div class="upgrade-row"><div><span class="upgrade-label">CURRENT LEVEL</span><strong>${state.heroes[selected.id]} <span>→ ${state.heroes[selected.id] + 1}</span></strong></div><div><span class="upgrade-label">NEXT HARVEST</span><strong>+${fmtRate((state.heroes[selected.id] + 1) * selected.baseLps * harvestMultiplier(state))} <span>/ sec</span></strong></div></div><button class="primary-button" data-upgrade="${selected.id}" ${state.leaves < getUpgradeCost(selected) ? 'disabled' : ''}>${icon('spark', 18)} Upgrade hero <span>${icon('leaf', 16)} ${fmt(getUpgradeCost(selected))}</span></button>` : `<div class="recruit-copy">${selectedOpen ? 'Add this hero to your garden and start harvesting together.' : 'Open this garden plot to make room for a new hero.'}</div><button class="primary-button" data-recruit="${selected.id}" ${!selectedOpen || state.leaves < selected.unlockCost ? 'disabled' : ''}>${selectedOpen ? `${icon('plus', 18)} Recruit hero <span>${icon('leaf', 16)} ${fmt(selected.unlockCost)}</span>` : `${icon('lock', 18)} Plot locked`}</button>`}</div>
     <div class="plot-upgrade-card"><span class="plot-upgrade-icon">🌷</span><div><strong>Make room to bloom</strong><small>${state.plots < HEROES.length ? `Open plot ${state.plots + 1} to welcome another hero.` : 'Every plot is open. Your garden is full!'}</small></div><button data-plot ${state.plots >= HEROES.length || state.leaves < getNextPlotCost() ? 'disabled' : ''}>${state.plots >= HEROES.length ? 'All open' : `${icon('leaf', 15)} ${fmt(getNextPlotCost())} ${icon('arrow', 15)}`}</button></div></div>
   </div>`;
 }
 function renderLegion() {
   content.innerHTML = `<div class="legion-intro-card"><div><span class="section-kicker">GROW YOUR GARDEN ARMY</span><h3>Small friends, big courage.</h3><p>Recruit troops to harvest leaves and fight beside your heroes.</p></div><span>🛡️ ${fmt(getTroopCount())} troops</span></div><div class="unit-grid">${UNITS.map(unit => {
     const unlocked = state.plots >= unit.plot;
-    return `<article class="unit-card ${unlocked ? '' : 'unit-locked'}"><div class="unit-top"><span class="unit-avatar">${unit.emoji}</span><span class="unit-count">${fmt(state.legion[unit.id])} RECRUITED</span></div><h3>${unit.name}</h3><p>${unit.desc}</p><div class="unit-stats"><span>🍃 +${fmtRate(unit.harvest)} / sec</span><span>⚔️ +${fmtRate(unit.power)} power</span><span>💚 +${unit.hp} HP</span></div><button class="primary-button" data-recruit-unit="${unit.id}" ${!unlocked || state.leaves < getUnitCost(unit) ? 'disabled' : ''}>${unlocked ? `Recruit one <span>🍃 ${fmt(getUnitCost(unit))}</span>` : `Open plot ${unit.plot} to unlock`}</button></article>`;
+    return `<article class="unit-card ${unlocked ? '' : 'unit-locked'}"><div class="unit-top"><span class="unit-avatar">${unit.emoji}</span><span class="unit-count">${fmt(state.legion[unit.id])} RECRUITED</span></div><h3>${unit.name}</h3><p>${unit.desc}</p><div class="unit-stats"><span>🍃 +${fmtRate(unit.harvest * harvestMultiplier(state))} / sec</span><span>⚔️ +${fmtRate(unit.power)} power</span><span>💚 +${unit.hp} HP</span></div><button class="primary-button" data-recruit-unit="${unit.id}" ${!unlocked || state.leaves < getUnitCost(unit) ? 'disabled' : ''}>${unlocked ? `Recruit one <span>🍃 ${fmt(getUnitCost(unit))}</span>` : `Open plot ${unit.plot} to unlock`}</button></article>`;
   }).join('')}</div>`;
   content.querySelector('.legion-intro-card > span').textContent = `🛡️ ${fmt(getTroopCount())} troop${getTroopCount() === 1 ? '' : 's'}`;
 }
@@ -260,7 +288,7 @@ function renderCombat() {
   document.querySelector('#enemy-name').textContent = enemy.name;
   document.querySelector('#enemy-wave').textContent = battle.wave % 5 === 0 ? 'BOSS WAVE' : `Wave ${battle.wave} enemy`;
   document.querySelector('#legion-badge').textContent = `${owned.length + getTroopCount()} ACTIVE`;
-  document.querySelector('#legion-roster').innerHTML = owned.map(hero => `<div class="roster-row"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><div><strong>${hero.name}</strong><small>Level ${state.heroes[hero.id]} · ${fmtRate(state.heroes[hero.id] * hero.baseLps * 3)} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unit.power * state.legion[unit.id])} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('');
+  document.querySelector('#legion-roster').innerHTML = owned.map(hero => `<div class="roster-row"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><div><strong>${hero.name}</strong><small>Level ${state.heroes[hero.id]} · ${fmtRate(heroPower(state, hero))} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unitPower(state, unit))} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('');
   renderBattleNumbers();
   if (activeScreen === 'combat') visuals?.syncCombat();
 }
@@ -277,6 +305,9 @@ function renderBattleNumbers() {
   document.querySelector('#combat-power').textContent = fmtRate(getCombatPower());
   document.querySelector('#waves-cleared').textContent = fmt(battle.wins);
   document.querySelector('#battle-earned').textContent = fmt(battle.earned);
+  const stalled = !!battle.stalled;
+  document.querySelector('#battle-status').classList.toggle('stalled', stalled);
+  document.querySelector('#battle-status-text').textContent = stalled ? 'LEGION TOO WEAK · UPGRADE TO ADVANCE' : 'AUTO BATTLE ACTIVE';
 
   const ultBtn = document.querySelector('#ult-btn');
   const ultFill = document.querySelector('#ult-fill');
@@ -299,10 +330,10 @@ function renderBattleNumbers() {
   }
 }
 function renderBag() {
-  const earned = ACCESSORIES.filter(item => state.battle.wins >= item.unlockAt).length;
+  const earned = ACCESSORIES.filter(item => isAccessoryUnlocked(state, item)).length;
   const equipped = ACCESSORIES.find(item => item.id === state.equipped);
-  document.querySelector('#bag-content').innerHTML = `<div class="utility-summary"><span class="summary-art">${equipped?.emoji || '🎒'}</span><div><span class="section-kicker">EQUIPPED ACCESSORY</span><h2>${equipped?.name || 'Nothing equipped yet'}</h2><p>${equipped ? equipped.bonus : 'Choose a treasure below to give your legion a boost.'}</p></div><span class="summary-count">${earned} / ${ACCESSORIES.length} found</span></div><div class="utility-section-title"><div><h2>Your collection</h2><p>Battle victories reveal new treasures.</p></div><span>🏆 ${fmt(state.battle.wins)} waves cleared</span></div><div class="accessory-grid">${ACCESSORIES.map(item => {
-    const unlocked = state.battle.wins >= item.unlockAt;
+  document.querySelector('#bag-content').innerHTML = `<div class="utility-summary"><span class="summary-art">${equipped?.emoji || '🎒'}</span><div><span class="section-kicker">EQUIPPED ACCESSORY</span><h2>${equipped?.name || 'Nothing equipped yet'}</h2><p>${equipped ? equipped.bonus : 'Choose a treasure below to give your legion a boost.'}</p></div><span class="summary-count">${earned} / ${ACCESSORIES.length} found</span></div><div class="utility-section-title"><div><h2>Your collection</h2><p>Battle victories reveal new treasures.</p></div><span>🏆 ${fmt(lifetimeWins(state))} lifetime waves cleared</span></div><div class="accessory-grid">${ACCESSORIES.map(item => {
+    const unlocked = isAccessoryUnlocked(state, item);
     const selected = state.equipped === item.id;
     return `<article class="accessory-card ${unlocked ? '' : 'accessory-locked'} ${selected ? 'equipped' : ''}"><span class="accessory-art">${unlocked ? item.emoji : '🔒'}</span><div class="accessory-copy"><span class="accessory-status">${selected ? 'EQUIPPED' : unlocked ? 'FOUND' : `UNLOCK AT ${item.unlockAt} WINS`}</span><h3>${item.name}</h3><p>${item.desc}</p><strong>${item.bonus}</strong></div><button data-equip="${item.id}" ${unlocked ? '' : 'disabled'}>${selected ? 'Unequip' : unlocked ? 'Equip' : 'Locked'}</button></article>`;
   }).join('')}</div>`;
@@ -360,11 +391,7 @@ function renderUpgrades() {
         const level = state.artifacts[art.id] || 0;
         const cost = artifactCost(art, level);
         const canAfford = (state.goldenSeeds || 0) >= cost;
-        const bonusText = art.id === 'sunlight_crystal' ? `+${level * 15}% Combat Power`
-          : art.id === 'fertile_soil' ? `+${level * 20}% Tap & LPS Harvest`
-          : art.id === 'eternal_root' ? `+${level * 25}% Party Max HP`
-          : art.id === 'golden_can' ? `+${level * 25}% Ult Charge Rate`
-          : `+${level * 15}% Wave Leaves`;
+        const bonusText = artifactBonusText(art, level);
         return `
           <article class="relic-card">
             <div class="relic-top">
@@ -395,12 +422,12 @@ function renderUpgrades() {
     <div class="boost-grid">
       ${BOOSTS.map(boost => {
         const level = state.boosts[boost.id];
-        const maxed = level >= 20;
+        const maxed = level >= MAX_BOOST_LEVEL;
         const value = boost.id === 'vitality' ? `+${level * 40} HP` : `+${Math.round(level * (boost.id === 'harvest' ? 25 : 20))}%`;
         return `
           <article class="boost-card ${boost.color}">
             <span class="boost-art">${boost.emoji}</span>
-            <span class="boost-level">LVL ${level} / 20</span>
+            <span class="boost-level">LVL ${level} / ${MAX_BOOST_LEVEL}</span>
             <h3>${boost.name}</h3>
             <p>${boost.desc}</p>
             <div class="boost-effect">
@@ -437,6 +464,10 @@ function renderSettings() {
           <div><strong>Sound effects</strong><small>Cozy synth melodies for harvests, attacks, and victories</small></div>
           <button class="toggle ${state.settings.sound ? 'on' : ''}" role="switch" aria-checked="${state.settings.sound}" data-setting="sound" aria-label="Sound effects"><span></span></button>
         </div>
+        <div class="setting-row">
+          <div><strong>Volume</strong><small id="volume-label">${state.settings.volume}%</small></div>
+          <input class="volume-slider" type="range" min="0" max="100" step="5" value="${state.settings.volume}" data-volume aria-label="Sound volume" ${state.settings.sound ? '' : 'disabled'} />
+        </div>
       </section>
       <section class="settings-card">
         <span class="section-kicker">PROGRESS</span>
@@ -459,14 +490,20 @@ function showScreen(name, updateHistory = true) {
   if (updateHistory) history.pushState(null, '', name === 'home' ? location.pathname + location.search : `#${name}`);
   document.querySelectorAll('.screen-link,.dock-link').forEach(button => { const current = button.dataset.screen === name; button.classList.toggle('active', current); if (current) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   SCREENS.forEach(screen => { document.querySelector(`#${screen}-screen`).hidden = screen !== name; });
+  renderScreen(name);
+  visuals?.show(name);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+// Renders only the given screen; hidden screens re-render when shown.
+function renderScreen(name) {
   if (name === 'home') renderHome();
+  if (name === 'garden') { renderGrid(); renderPanel(); }
   if (name === 'combat') renderCombat();
   if (name === 'bag') renderBag();
   if (name === 'upgrades') renderUpgrades();
   if (name === 'settings') renderSettings();
-  visuals?.show(name);
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+function refresh() { renderNumbers(); renderScreen(activeScreen); }
 function renderAll() { renderNumbers(); renderGrid(); renderPanel(); renderCombat(); renderHome(); renderBag(); renderUpgrades(); renderSettings(); }
 
 function floatingHarvest() {
@@ -479,7 +516,7 @@ function floatingHarvest() {
     if (!plot) return;
     const span = document.createElement('span');
     span.className = 'floating-harvest';
-    span.textContent = `+${fmtRate(level * hero.baseLps * 2)} 🍃`;
+    span.textContent = `+${fmtRate(heroLps(state, hero) * 2)} 🍃`;
     span.style.left = `${42 + Math.random() * 18}%`;
     plot.append(span);
     const cleanup = () => span.remove();
@@ -521,7 +558,7 @@ app.addEventListener('click', (event) => {
       const seeds = bloomAnew(state);
       playBloom();
       save();
-      renderAll();
+      refresh();
       toast(`🌸 Bloomed Anew! You earned ${seeds} Golden Seeds!`);
     }
     return;
@@ -540,7 +577,7 @@ app.addEventListener('click', (event) => {
         state.artifacts[artId] = level + 1;
         playUpgrade();
         save();
-        renderAll();
+        refresh();
         toast(`${art.name} upgraded to Level ${state.artifacts[artId]}!`);
       }
     }
@@ -550,10 +587,10 @@ app.addEventListener('click', (event) => {
   const equip = event.target.closest('[data-equip]');
   if (equip) {
     const item = ACCESSORIES.find(entry => entry.id === equip.dataset.equip);
-    if (!item || state.battle.wins < item.unlockAt) return;
+    if (!isAccessoryUnlocked(state, item)) return;
     state.equipped = state.equipped === item.id ? null : item.id;
     state.battle.partyHp = Math.min(state.battle.partyHp, getPartyMaxHp());
-    save(); renderAll(); toast(state.equipped ? `${item.name} equipped!` : `${item.name} put away.`);
+    save(); refresh(); toast(state.equipped ? `${item.name} equipped!` : `${item.name} put away.`);
     return;
   }
   const recruitUnit = event.target.closest('[data-recruit-unit]');
@@ -564,18 +601,18 @@ app.addEventListener('click', (event) => {
     state.legion[unit.id]++;
     state.battle.partyHp += unit.hp;
     playUpgrade();
-    save(); renderAll(); toast(`${unit.name} joined your legion!`);
+    save(); refresh(); toast(`${unit.name} joined your legion!`);
     return;
   }
   const boostButton = event.target.closest('[data-boost]');
   if (boostButton) {
     const boost = BOOSTS.find(entry => entry.id === boostButton.dataset.boost);
-    if (!boost || state.boosts[boost.id] >= 20 || state.leaves < getBoostCost(boost)) return;
+    if (!boost || state.boosts[boost.id] >= MAX_BOOST_LEVEL || state.leaves < getBoostCost(boost)) return;
     state.leaves -= getBoostCost(boost);
     state.boosts[boost.id]++;
     if (boost.id === 'vitality') state.battle.partyHp += 40;
     playUpgrade();
-    save(); renderAll(); toast(`${boost.name} reached level ${state.boosts[boost.id]}!`);
+    save(); refresh(); toast(`${boost.name} reached level ${state.boosts[boost.id]}!`);
     return;
   }
   const setting = event.target.closest('[data-setting]');
@@ -601,6 +638,7 @@ app.addEventListener('click', (event) => {
   const select = event.target.closest('[data-select]');
   if (select) {
     const heroId = select.dataset.select;
+    const selectionChanged = selectedHero !== heroId;
     selectedHero = heroId;
 
     // Active tap harvest if tapping on an unlocked hero plot
@@ -626,11 +664,14 @@ app.addEventListener('click', (event) => {
       }
     }
 
-    if (activeTab !== 'heroes') {
+    const tabChanged = activeTab !== 'heroes';
+    if (tabChanged) {
       activeTab = 'heroes';
       document.querySelectorAll('.tab').forEach(button => { const on = button.dataset.tab === 'heroes'; button.classList.toggle('active', on); button.setAttribute('aria-selected', String(on)); });
     }
-    renderGrid(); renderPanel();
+    // Patch the grid in place: rebuilding it would drop the floating text and restart the Phaser sprites mid-tap.
+    grid.querySelectorAll('.hero-plot').forEach(plot => plot.classList.toggle('selected', plot.dataset.select === heroId));
+    if (selectionChanged || tabChanged) renderPanel();
     return;
   }
   const upgrade = event.target.closest('[data-upgrade]');
@@ -640,7 +681,7 @@ app.addEventListener('click', (event) => {
     if (state.leaves < cost) return;
     state.leaves -= cost; state.heroes[hero.id]++; state.battle.partyHp += 10;
     playUpgrade();
-    save(); renderAll(); toast(`${hero.name} reached level ${state.heroes[hero.id]}!`);
+    save(); refresh(); toast(`${hero.name} reached level ${state.heroes[hero.id]}!`);
     return;
   }
   const recruit = event.target.closest('[data-recruit]');
@@ -649,19 +690,19 @@ app.addEventListener('click', (event) => {
     if (hero.plot >= state.plots || state.heroes[hero.id] || state.leaves < hero.unlockCost) return;
     state.leaves -= hero.unlockCost; state.heroes[hero.id] = 1; state.battle.partyHp += 10;
     playUpgrade();
-    save(); renderAll(); toast(`${hero.name} joined your garden!`);
+    save(); refresh(); toast(`${hero.name} joined your garden!`);
     return;
   }
   if (event.target.closest('[data-plot]')) {
     if (state.plots >= HEROES.length || state.leaves < getNextPlotCost()) return;
     state.leaves -= getNextPlotCost(); state.plots++;
     playUpgrade();
-    save(); renderAll(); toast(`Plot ${state.plots} is ready to grow!`);
+    save(); refresh(); toast(`Plot ${state.plots} is ready to grow!`);
   }
 });
 
 function tick() {
-  if (document.hidden) return;
+  if (document.hidden || pausedByOtherTab) return;
   const now = Date.now();
   const dt = Math.min(1, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
@@ -689,7 +730,7 @@ function tick() {
   if (activeScreen === 'upgrades') {
     document.querySelectorAll('[data-boost]').forEach(button => {
       const boost = BOOSTS.find(entry => entry.id === button.dataset.boost);
-      button.disabled = state.boosts[boost.id] >= 20 || state.leaves < getBoostCost(boost);
+      button.disabled = state.boosts[boost.id] >= MAX_BOOST_LEVEL || state.leaves < getBoostCost(boost);
     });
     document.querySelectorAll('[data-artifact]').forEach(button => {
       const art = ARTIFACTS.find(entry => entry.id === button.dataset.artifact);
@@ -731,10 +772,11 @@ import('./visuals.js').then(({ initVisuals }) => {
   visuals = initVisuals({ heroes: HEROES, getState: () => state, getScreen: () => activeScreen, getMotion: () => state.settings.motion });
   applySettings();
 }).catch(error => console.warn('Animated scenes could not load; static characters remain available.', error));
-if (offlineSeconds > 5) toast(`Welcome back! Your heroes gathered ${fmt(getLps() * offlineSeconds)} leaves while you were away.`);
+if (offlineSeconds > 5) toast(`Welcome back! Your heroes gathered ${fmt(offlineGain)} leaves while you were away.`);
 setInterval(tick, 100);
 setInterval(save, 5000);
 document.addEventListener('visibilitychange', () => {
+  if (pausedByOtherTab) return;
   if (document.hidden) {
     save();
   } else {
@@ -742,14 +784,41 @@ document.addEventListener('visibilitychange', () => {
     const elapsed = Math.min(8 * 60 * 60, Math.max(0, (now - lastTick) / 1000));
     lastTick = now;
     if (elapsed > 0) {
-      const gained = getLps() * elapsed;
-      state.leaves += gained;
-      state.totalHarvested += gained;
-      advanceCombat(state, elapsed);
+      const gained = catchUp(elapsed);
       save();
-      renderAll();
+      refresh();
       if (elapsed > 5) toast(`Your heroes gathered ${fmt(gained)} leaves while you were away.`);
     }
   }
 });
 window.addEventListener('pagehide', save);
+app.addEventListener('input', (event) => {
+  const slider = event.target.closest('[data-volume]');
+  if (!slider) return;
+  state.settings.volume = Math.max(0, Math.min(100, Number(slider.value) || 0));
+  document.querySelector('#volume-label').textContent = `${state.settings.volume}%`;
+  applySettings();
+});
+app.addEventListener('change', (event) => {
+  if (!event.target.closest('[data-volume]')) return;
+  save();
+  playTap();
+});
+// Another tab took ownership of the save: stop ticking and saving here so it can't overwrite that tab's progress.
+window.addEventListener('storage', (event) => {
+  if (event.key !== OWNER_KEY || !event.newValue || event.newValue === TAB_ID || pausedByOtherTab) return;
+  pausedByOtherTab = true;
+  document.body.classList.add('paused-by-other-tab');
+  const banner = document.createElement('div');
+  banner.className = 'tab-paused-banner';
+  banner.setAttribute('role', 'alert');
+  banner.innerHTML = '<strong>Your garden is open in another tab.</strong><span>This tab is paused so it won\'t overwrite your progress.</span><button type="button">Play here instead</button>';
+  banner.querySelector('button').addEventListener('click', () => location.reload());
+  app.append(banner);
+});
+// Offline support + installability. Dev server skips it so hot reload isn't served stale files.
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* offline support is optional */ });
+  });
+}

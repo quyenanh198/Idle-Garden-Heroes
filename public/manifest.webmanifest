@@ -1,0 +1,13 @@
+{
+  "name": "Idle Garden Hero",
+  "short_name": "Garden Hero",
+  "description": "A cozy idle garden game. Grow your heroes and watch the leaves roll in.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f8f7ef",
+  "theme_color": "#f8f6ec",
+  "icons": [
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

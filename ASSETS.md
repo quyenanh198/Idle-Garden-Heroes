@@ -1,21 +1,21 @@
 # Game art
 
-The PNG assets in `public/assets/` were generated with the built-in image generation tool. The image supplied by the user was used as a style reference for cozy storybook fantasy art. The generated characters and garden scene are new artwork, with transparent backgrounds for character sprites. Matching `.webp` files are optimized copies used by the game; together they total about 1.4 MB instead of 21 MB of PNG originals.
+The PNG source art in `art-source/` was generated with the built-in image generation tool. The image supplied by the user was used as a style reference for cozy storybook fantasy art. The generated characters and garden scene are new artwork, with transparent backgrounds for character sprites. Matching `.webp` files in `public/assets/` are the optimized copies the game ships; together they total about 1.4 MB instead of 21 MB of PNG originals.
 
 | Asset | File |
 | --- | --- |
-| Sprout Knight | `public/assets/sprout-knight.png` |
-| Rose Mage | `public/assets/rose-mage.png` |
-| Oak Sentinel | `public/assets/oak-sentinel.png` |
-| Daisy Dancer | `public/assets/daisy-dancer.png` |
-| Moss Golem | `public/assets/moss-golem.png` |
-| Sunflower Sage | `public/assets/sunflower-sage.png` |
-| Grumpy Mushroom | `public/assets/grumpy-mushroom.png` |
-| Thorny Bramble | `public/assets/thorny-bramble.png` |
-| Slime Sprig | `public/assets/slime-sprig.png` |
-| Wild Wasp | `public/assets/wild-wasp.png` |
-| Shadow Stump | `public/assets/shadow-stump.png` |
-| Garden glade backdrop | `public/assets/garden-glade.png` |
+| Sprout Knight | `art-source/sprout-knight.png` |
+| Rose Mage | `art-source/rose-mage.png` |
+| Oak Sentinel | `art-source/oak-sentinel.png` |
+| Daisy Dancer | `art-source/daisy-dancer.png` |
+| Moss Golem | `art-source/moss-golem.png` |
+| Sunflower Sage | `art-source/sunflower-sage.png` |
+| Grumpy Mushroom | `art-source/grumpy-mushroom.png` |
+| Thorny Bramble | `art-source/thorny-bramble.png` |
+| Slime Sprig | `art-source/slime-sprig.png` |
+| Wild Wasp | `art-source/wild-wasp.png` |
+| Shadow Stump | `art-source/shadow-stump.png` |
+| Garden glade backdrop | `art-source/garden-glade.png` |
 
 ## Prompt set
 

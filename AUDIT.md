@@ -4,7 +4,7 @@
 **Repository:** [https://github.com/quyenanh198/Idle-Garden-Heroes.git](https://github.com/quyenanh198/Idle-Garden-Heroes.git)  
 **Date:** September 2026  
 **Auditor:** Antigravity AI Engineering  
-**Tech Stack:** Vanilla JavaScript (ES Modules), Vite 7, Tailwind CSS 4, Phaser 3 (`phaser@3.90.0`), Node.js Test Runner
+**Tech Stack:** Vanilla JavaScript (ES Modules), Vite 7, Phaser 3 (`phaser@3.90.0`), Node.js Test Runner
 
 ---
 
@@ -19,7 +19,7 @@ Prior to this audit, while the game was visually appealing and responsive, it su
 4. **`NaN` / corruption vulnerability** in local storage save restoration.
 5. **Absence of automated testing** in the project and CI pipeline.
 
-All identified vulnerabilities and performance bottlenecks have been fixed and validated with a comprehensive 13-test automated test suite and clean production builds.
+All identified vulnerabilities and performance bottlenecks have been fixed and validated with an automated test suite (now 37 tests; see Section 6) and clean production builds.
 
 ---
 
@@ -105,9 +105,14 @@ Idle Garden Hero/
 │   ├── game-engine.js              # Pure game mechanics, math formulas, combat sim & save sanitization
 │   ├── main.js                     # DOM shell, screen routing, click handlers & tick loop
 │   ├── visuals.js                  # Phaser 3 dual-scene manager (GardenScene & CombatScene)
-│   └── style.css                   # Tailwind CSS 4 & custom cozy responsive stylesheet
+│   ├── format.js                   # Shared number formatting
+│   ├── audio.js                    # Web Audio synthesizer with master volume
+│   ├── preflight.css               # Vendored CSS reset (Tailwind v4 preflight, MIT)
+│   └── style.css                   # Custom cozy responsive stylesheet
 ├── test/
-│   └── game-engine.test.js         # 13 comprehensive unit tests covering math, combat & saves
+│   ├── game-engine.test.js         # Engine unit tests: math, combat & saves
+│   ├── regressions.test.js         # Tests for the Section 6 follow-up fixes
+│   └── format.test.js              # Number formatting tests
 ├── index.html                      # Single-page HTML entrypoint
 ├── package.json                    # Scripts: "dev", "test", "build", "preview"
 ├── AUDIT.md                        # This audit & optimization report
@@ -178,7 +183,36 @@ dist/assets/visuals-EEFPrtIg.js  1,221.12 kB │ gzip: 337.07 kB
 - **Ancient Artifacts:** 5 permanent cosmic relics purchased with Golden Seeds that persist through all prestige resets:
   1. *Sunlight Crystal:* +15% Combat Power per level.
   2. *Fertile Soil:* +20% Tap Harvest & LPS per level.
-  3. *Eternal Root:* +25% Party Max HP per level.
+  3. *Eternal Root:* +60 Party Max HP per level.
   4. *Golden Dew Bucket:* +25% Ultimate Energy Charge Rate per level.
-  5. *Clover of Fortune:* +15% Wave Reward leaves per level.
-- **Wave Biomes (`biomeForWave`):** Dynamically transitions across 5 themed biomes (Whispering Woods, Sunlit Meadow, Misty Hollow, Ancient Glade, and Celestial Bramble) up to Wave 150.
+  5. *Clover of Fortune:* +20% Wave Reward leaves per level.
+- **Wave Biomes (`biomeForWave`):** Dynamically transitions across 5 themed biomes (Whispering Glade, Thorny Thicket, Misty Swamp, Ancient Redwood, and Twilight Grove) up to Wave 150.
+
+---
+
+## 6. Follow-up Audit (September 24, 2026)
+
+A second pass found the issues below. All are fixed, with tests in `test/regressions.test.js` and `test/format.test.js` (37 tests total, all passing).
+
+### Gameplay bugs
+- **Bloom Anew re-locked Bag accessories.** Accessories unlocked from `battle.wins`, which prestige resets to 0, and the equipped item was dropped on the next load. Added `lifetimeWins` (migrated from current wins for old saves); accessories now unlock from it.
+- **Artifact bonus text disagreed with the engine.** Eternal Root showed `+25%` HP but applied a flat `+60`; Clover showed `+15%` but applied `+20%`. Artifacts now carry a `perLevel` value that both the formulas and `artifactBonusText()` read.
+- **Tap harvest floating text never appeared, and the squash tween was cut off.** Each tap rebuilt the whole garden grid (removing the new text) and triggered a Phaser re-sync (destroying the sprite). Taps now update the grid in place.
+- **With animations off, tap particles and the Sunlight Burst flash stayed on screen forever** (tweens run at `timeScale = 0`). Short-lived effects are now tracked and skipped or destroyed when motion is off.
+- **Large numbers overflowed** (`4600.00B`). A shared `src/format.js` adds T, Qa … Dc suffixes, then scientific notation.
+- **Stalemates looked frozen.** `advanceCombat` sets `battle.stalled`; the arena shows "Legion too weak · upgrade to advance" and stops fake hit animations.
+- Tap harvest used a 15% boost per level instead of the documented 25%.
+- Per-hero and roster rates ignored multipliers; they now use `heroLps` / `heroPower` / `unitPower`.
+- The offline toast now includes leaves won in battle while away.
+- `calculateGoldenSeeds` could return `NaN`; a far-future `ultActiveUntil` in an edited save granted permanent 2× damage; artifact levels were silently capped at 25 on load. All clamped or fixed.
+- **Two open tabs overwrote each other's save.** The newest tab now claims ownership; older tabs pause behind a banner.
+
+### Performance and build
+- **Unused PNG originals shipped in `dist/`** (22.8 MB). Moved to `art-source/`; `dist/` is now 2.7 MB.
+- **Two Phaser games** replaced by one game with two scenes whose canvas moves to the visible screen. The garden canvas is also re-attached after grid re-renders (previously a purchase could detach it).
+- The 10 Hz tick no longer rewrites the plot counter's SVG every frame, and purchases re-render only the active screen.
+- Audio routes through one master gain with a Volume setting, and no `AudioContext` is created before the first user gesture.
+- Tailwind was listed but its Vite plugin was never configured, so the build shipped raw `@tailwind` / `--theme()` rules. Replaced with a vendored preflight reset; CSS dropped from 70 KB to 52 KB.
+- Added `vite.config.js` with a relative `base` so the build works under a sub-path (e.g. GitHub Pages).
+- Added a favicon, web manifest, and network-first service worker.
+- Root screenshots moved into `screenshots/`; the stray `.chrome-combat/` browser profile was deleted.

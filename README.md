@@ -3,10 +3,9 @@
 > A cozy, mobile-friendly incremental idle garden game with active tap harvesting, automated RPG glade defense, Phaser 3 animations, built-in Web Audio synthesis, and an Ancient Artifact prestige system.
 
 [![CI Status](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml/badge.svg)](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml)
-[![Tests](https://img.shields.io/badge/tests-19%20passed-brightgreen.svg)](test/game-engine.test.js)
+[![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen.svg)](test/game-engine.test.js)
 [![Vite](https://img.shields.io/badge/Vite-7.3-646CFF.svg?logo=vite)](https://vitejs.dev/)
 [![Phaser](https://img.shields.io/badge/Phaser-3.90-ff2442.svg?logo=phaser)](https://phaser.io/)
-[![TailwindCSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC.svg?logo=tailwind-css)](https://tailwindcss.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -15,7 +14,7 @@
 
 | 🌿 Cozy Garden HQ | ⚔️ Auto-Battle & Biomes |
 | :---: | :---: |
-| ![Garden Screen](screenshot-garden-engine.png) | ![Combat Screen](screenshot-combat-engine.png) |
+| ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Screen](screenshots/screenshot-combat-engine.png) |
 
 ---
 
@@ -30,11 +29,12 @@
 ### 2. ⚔️ Auto-Battle & Combat Progression
 - **Automated Glade Defense:** Recruited heroes and legion troops form an expedition force that automatically battles waves of glade creatures.
 - **5 Themed Biomes:** Journey across 150 progressive combat waves:
-  - 🌲 **Whispering Woods** *(Waves 1–15)*
-  - 🌼 **Sunlit Meadow** *(Waves 16–35)*
-  - 🍄 **Misty Hollow** *(Waves 36–65)*
-  - 🌿 **Ancient Glade** *(Waves 66–100)*
-  - 🌸 **Celestial Bramble** *(Waves 101–150)*
+  - 🌼 **Whispering Glade** *(Waves 1–25)*
+  - 🌵 **Thorny Thicket** *(Waves 26–50)*
+  - 🐸 **Misty Swamp** *(Waves 51–75)*
+  - 🌲 **Ancient Redwood** *(Waves 76–100)*
+  - 🌙 **Twilight Grove** *(Waves 101–150)*
+- **Stalemate Feedback:** If the legion can't beat the current wave, the battle banner switches to *"Legion too weak · upgrade to advance"* instead of looping silently.
 - **Boss Waves:** Face formidable shadow bosses every 5 waves for elevated Leaf Point rewards.
 - **Tactile Combat VFX:** Hero-specific color projectiles, enemy spore attacks with party pushback, hit spark reactions, and floating damage numbers (white for normal, gold for crits, red for party damage).
 
@@ -47,19 +47,19 @@
 
 ### 4. 🌸 "Bloom Anew" Prestige System & Ancient Relics
 - **Transcend the Glade:** Unlocks at **Wave 25+**. Reset heroes, plots, and battle progression to harvest cosmic **Golden Seeds** (scaled by wave depth, wins, and lifetime harvested leaves).
-- **Persistent Progress:** All equippable Bag treasures, Golden Seeds, and Ancient Artifacts persist across resets.
+- **Persistent Progress:** All equippable Bag treasures, Golden Seeds, and Ancient Artifacts persist across resets. Accessories unlock from *lifetime* wave wins, so a bloom never re-locks them.
 - **5 Ancient Artifacts:**
   1. 💎 **Sunlight Crystal:** `+15%` Combat Power per level.
   2. 🌱 **Fertile Soil:** `+20%` Tap & LPS Harvest per level.
-  3. 🌳 **Eternal Root:** `+25%` Party Max HP per level.
-  4. 🪣 **Golden Dew Bucket:** `+25%` Ultimate Energy Charge Rate per level.
-  5. 🍀 **Clover of Fortune:** `+15%` Wave Reward leaves per level.
+  3. 🌳 **Eternal Root:** `+60` Party Max HP per level.
+  4. ✨ **Golden Dew Bucket:** `+25%` Ultimate Energy Charge Rate per level.
+  5. 🍀 **Clover of Fortune:** `+20%` Wave Reward leaves per level.
 
 ### 5. 🎵 Built-in Cozy Web Audio Synthesizer
 - **Zero-Dependency Audio:** Synthesized entirely via the browser's native `AudioContext` (no external MP3/WAV downloads, zero latency, zero bandwidth bloat).
 - **Hero-Specific Tones:** Distinct attack signatures (Sprout Knight sword sweep, Rose Mage crystal chime, Oak Sentinel deep thud, Sunflower Sage warm harmonic chord).
 - **Full Soundscape:** Tap harvest notes, crit fanfare, enemy spore impacts, level-up chimes, wave victory jingles, ultimate roar, and cosmic bloom melody.
-- **Mute Control:** Toggle sound effects in Settings with instant local persistence.
+- **Mute & Volume Control:** Toggle sound effects and set a master volume in Settings, both saved locally.
 
 ### 6. 🎒 Bag, Accessories & Upgrades
 - **Accessories:** Earn unique relics (Leaf Charm, Rose Brooch, Oak Badge, Sunstone Pendant) by achieving battle win milestones.
@@ -99,16 +99,23 @@
 
 ```
 Idle Garden Hero/
-├── .github/workflows/build.yml   # CI pipeline: lint, test, build
-├── public/assets/                # 12 WebP illustrations for heroes & foes
+├── .github/workflows/build.yml   # CI pipeline: test, build
+├── art-source/                   # Full-size PNG originals (not shipped)
+├── public/
+│   ├── assets/                   # 12 WebP illustrations for heroes & foes
+│   ├── favicon.svg, manifest.webmanifest, sw.js  # Icon, install manifest, offline service worker
+├── screenshots/                  # README & review screenshots
 ├── src/
 │   ├── game-engine.js            # Pure decoupled math, formulas, combat sim & save sanitization
-│   ├── audio.js                  # Native Web Audio API synthesizer for all SFX
-│   ├── visuals.js                # Phaser 3 dual-scene rendering (Garden & Combat overlays)
-│   ├── main.js                   # Reactive UI controller, routing, click handlers & tick loop
-│   └── style.css                 # Tailwind CSS 4 & custom cozy responsive design
+│   ├── format.js                 # Shared number formatting (K … Dc, then scientific)
+│   ├── audio.js                  # Native Web Audio API synthesizer with master volume
+│   ├── visuals.js                # One Phaser 3 game, Garden & Combat scenes; canvas follows the active screen
+│   ├── main.js                   # UI controller, routing, click handlers, tick loop & multi-tab guard
+│   ├── preflight.css             # Vendored CSS reset (Tailwind v4 preflight, MIT)
+│   └── style.css                 # Custom cozy responsive design
 ├── test/
-│   └── game-engine.test.js       # 19 comprehensive unit tests (Node.js Test Runner)
+│   ├── game-engine.test.js       # Engine unit tests (Node.js Test Runner)
+│   └── format.test.js            # Number formatting tests
 ├── AUDIT.md                      # In-depth architectural audit & optimization report
 ├── ASSETS.md                     # Asset catalog & illustration prompts
 ├── package.json
@@ -117,7 +124,7 @@ Idle Garden Hero/
 
 ### Key Technical Highlights
 - **Decoupled Engine (`src/game-engine.js`):** All mathematical formulas, scaling functions, combat simulation steps, and save sanitization are 100% pure functions with zero DOM or browser dependencies, allowing automated headless testing.
-- **Hybrid Rendering Architecture:** Uses native semantic HTML and Tailwind CSS for snappy accessibility, combined with transparent Phaser 3 canvas overlays for particle bursts, squash-and-stretch tweens, and projectile physics.
+- **Hybrid Rendering Architecture:** Uses native semantic HTML and hand-written CSS for snappy accessibility, combined with transparent Phaser 3 canvas overlays for particle bursts, squash-and-stretch tweens, and projectile physics.
 - **Save Sanitization (`sanitizeSave`):** Guarded against `NaN`, `Infinity`, negative bounds, and corrupted JSON storage to guarantee player progress integrity.
 
 ---

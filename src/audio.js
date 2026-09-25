@@ -2,14 +2,21 @@
 // Zero external files, zero latency, zero bandwidth
 
 let audioCtx = null;
+let masterGain = null;
 let soundEnabled = true;
+let volume = 0.7;
 
 function getContext() {
-  if (!soundEnabled) return null;
+  if (!soundEnabled || volume <= 0) return null;
   if (!audioCtx) {
+    // Browsers block audio before the first user gesture; wait for one instead of creating a suspended context.
+    if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return null;
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (AudioContextClass) {
       audioCtx = new AudioContextClass();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = volume;
+      masterGain.connect(audioCtx.destination);
     }
   }
   if (audioCtx?.state === 'suspended') {
@@ -18,8 +25,18 @@ function getContext() {
   return audioCtx;
 }
 
+// Every sound routes through one master gain so the volume setting applies everywhere.
+function output(ctx) {
+  return masterGain || ctx.destination;
+}
+
 export function setSoundEnabled(enabled) {
   soundEnabled = !!enabled;
+}
+
+export function setVolume(level) {
+  volume = Math.max(0, Math.min(1, Number(level) || 0));
+  if (masterGain) masterGain.gain.value = volume;
 }
 
 export function isSoundEnabled() {
@@ -41,7 +58,7 @@ export function playTap() {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output(ctx));
 
   osc.start(now);
   osc.stop(now + 0.1);
@@ -60,7 +77,7 @@ export function playCritTap() {
     gain.gain.setValueAtTime(0.2, now + i * 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.04 + 0.15);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(output(ctx));
     osc.start(now + i * 0.04);
     osc.stop(now + i * 0.04 + 0.16);
   });
@@ -81,7 +98,7 @@ export function playHarvest() {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output(ctx));
 
   osc.start(now);
   osc.stop(now + 0.14);
@@ -125,7 +142,7 @@ export function playHeroAttack(heroId) {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output(ctx));
   osc.start(now);
   osc.stop(now + 0.13);
 }
@@ -145,7 +162,7 @@ export function playEnemyAttack() {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output(ctx));
   osc.start(now);
   osc.stop(now + 0.16);
 }
@@ -165,7 +182,7 @@ export function playHit() {
   gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
 
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(output(ctx));
   osc.start(now);
   osc.stop(now + 0.09);
 }
@@ -185,7 +202,7 @@ export function playUpgrade() {
     gain.gain.setValueAtTime(0.2, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + 0.18);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(output(ctx));
     osc.start(start);
     osc.stop(start + 0.19);
   });
@@ -206,7 +223,7 @@ export function playVictory() {
     gain.gain.setValueAtTime(0.22, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + (i === 3 ? 0.45 : 0.22));
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(output(ctx));
     osc.start(start);
     osc.stop(start + (i === 3 ? 0.46 : 0.23));
   });
@@ -228,7 +245,7 @@ export function playUlt() {
     gain.gain.setValueAtTime(0.25, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(output(ctx));
     osc.start(start);
     osc.stop(start + 0.42);
   });
@@ -248,7 +265,7 @@ export function playBloom() {
     gain.gain.setValueAtTime(0.28, start);
     gain.gain.exponentialRampToValueAtTime(0.001, start + 0.6);
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(output(ctx));
     osc.start(start);
     osc.stop(start + 0.65);
   });
