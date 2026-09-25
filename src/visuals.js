@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { restPose, tapKeyframes } from './tap-pose.js';
 import { playHeroAttack, playEnemyAttack, playHit } from './audio.js';
 import { combatPower, enemyDamage, enemyForWave, HERO_IMAGES, ENEMY_IMAGES, UNITS } from './game-engine.js';
 import { fmt } from './format.js';
@@ -63,7 +64,9 @@ function drawHero(scene, hero, x, y, scale = 1) {
     const sprite = scene.add.image(x, y, texture);
     sprite.heroId = hero.id;
     sprite.setScale((127 * scale) / sprite.height);
-    scene.tweens.add({ targets: sprite, y: y - 6 * scale, angle: hero.plot % 2 ? 2 : -2, duration: 1250 + hero.plot * 130, ease: 'Sine.easeInOut', yoyo: true, repeat: -1, delay: hero.plot * 150 });
+    sprite.restPose = { x, y, scaleX: sprite.scaleX, scaleY: sprite.scaleY, angle: 0 };
+    sprite.startIdle = () => scene.tweens.add({ targets: sprite, y: y - 6 * scale, angle: hero.plot % 2 ? 2 : -2, duration: 1250 + hero.plot * 130, ease: 'Sine.easeInOut', yoyo: true, repeat: -1, delay: hero.plot * 150 });
+    sprite.startIdle();
     return sprite;
   }
   const p = PALETTES[hero.id];
@@ -125,7 +128,9 @@ function drawHero(scene, hero, x, y, scale = 1) {
     circle(g, p.accent, 34, 17, 10);
   }
   group.setScale(scale);
-  scene.tweens.add({ targets: group, y: y - 5 * scale, scaleX: scale * 1.025, scaleY: scale * 1.025, duration: 1300 + hero.plot * 130, ease: 'Sine.easeInOut', yoyo: true, repeat: -1, delay: hero.plot * 150 });
+  group.restPose = { x, y, scaleX: scale, scaleY: scale, angle: 0 };
+  group.startIdle = () => scene.tweens.add({ targets: group, y: y - 5 * scale, scaleX: scale * 1.025, scaleY: scale * 1.025, duration: 1300 + hero.plot * 130, ease: 'Sine.easeInOut', yoyo: true, repeat: -1, delay: hero.plot * 150 });
+  group.startIdle();
   return group;
 }
 
@@ -160,6 +165,7 @@ function drawEnemy(scene, type, x, y) {
   if (scene.textures.exists(texture)) {
     const sprite = scene.add.image(x, y, texture);
     sprite.setScale((153 * (type === 'boss' ? 1.13 : 1)) / sprite.height);
+    sprite.restPose = { x, y, scaleX: sprite.scaleX, scaleY: sprite.scaleY, angle: 0 };
     scene.tweens.add({ targets: sprite, y: y - 7, angle: 2, duration: 1450, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
     return sprite;
   }
@@ -196,6 +202,7 @@ function drawEnemy(scene, type, x, y) {
   ellipse(g, 0xffffff, -16, 1, 12, 15); ellipse(g, 0xffffff, 16, 1, 12, 15);
   circle(g, 0x394638, -15, 3, 4); circle(g, 0x394638, 17, 3, 4);
   g.lineStyle(2, 0x734e4e); g.lineBetween(-5, 23, 5, 23);
+  group.restPose = { x, y, scaleX: group.scaleX, scaleY: group.scaleY, angle: 0 };
   scene.tweens.add({ targets: group, y: y - 7, angle: 2, duration: 1450, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
   return group;
 }
@@ -255,28 +262,31 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       if (!canAnimate()) return;
       const sprite = this.characters.get(heroId);
       if (!sprite || !sprite.active) return;
+      const rest = restPose(sprite);
       this.tweens.killTweensOf(sprite);
-      const origX = sprite.x;
-      const origY = sprite.y;
-      const baseScaleX = sprite.scaleX;
-      const baseScaleY = sprite.scaleY;
+      // killTweensOf dừng tween ngay tại chỗ: đưa về dáng đứng yên trước khi nhún tiếp,
+      // không thì cú chạm này lấy dáng đang bẹp của cú trước làm gốc (xem tap-pose.js).
+      sprite.setPosition(rest.x, rest.y);
+      sprite.setScale(rest.scaleX, rest.scaleY);
+      sprite.setAngle(rest.angle);
+      const origX = rest.x;
+      const origY = rest.y;
+      const { squash, stretch } = tapKeyframes(rest);
       this.tweens.add({
         targets: sprite,
-        scaleX: baseScaleX * 1.25,
-        scaleY: baseScaleY * 0.78,
-        y: origY + 4,
+        ...squash,
         duration: 90,
         yoyo: true,
         ease: 'Quad.easeOut',
         onComplete: () => {
           this.tweens.add({
             targets: sprite,
-            scaleX: baseScaleX * 0.96,
-            scaleY: baseScaleY * 1.12,
-            y: origY - 6,
+            ...stretch,
             duration: 110,
             yoyo: true,
             ease: 'Sine.easeInOut',
+            // killTweensOf ở trên cũng giết luôn nhịp thở lúc đứng yên — bật lại sau khi nhún xong.
+            onComplete: () => sprite.startIdle?.(),
           });
         },
       });
@@ -400,7 +410,10 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
               const dmg = Math.max(1, Math.round(combatPower(getState()) * 0.8 * (isCrit ? 2 : 1)));
               this.showDamage(fmt(dmg), isCrit, false);
             }
-            this.tweens.add({ targets: this.enemy, scaleX: this.enemy.scaleX * 1.05, scaleY: this.enemy.scaleY * 0.96, duration: 80, yoyo: true });
+            const target = this.enemy;
+            const rest = restPose(target);
+            this.tweens.add({ targets: target, scaleX: rest.scaleX * 1.05, scaleY: rest.scaleY * 0.96, duration: 80, yoyo: true,
+              onComplete: () => { if (target.active) target.setScale(rest.scaleX, rest.scaleY); } });
             for (let i = 0; i < 3; i++) {
               const particle = this.add.circle(this.enemy.x, this.enemy.y - 8, Phaser.Math.Between(2, 5), i % 2 ? 0xf0c879 : projColor);
               spawnFx(this, particle, { x: particle.x + Phaser.Math.Between(-30, 30), y: particle.y + Phaser.Math.Between(-26, 24), alpha: 0, duration: 360 });
