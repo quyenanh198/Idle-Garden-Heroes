@@ -773,3 +773,42 @@
   .tactics-order-btns { display: flex; align-items: center; justify-content: space-between; }
   .order-btn-group { margin-left: auto; }
 }
+
+/* Three independent environment depths share a small foreground texture. */
+.garden-panel,.battlefield{position:relative;isolation:isolate;background-image:none!important;background-color:#e9f2dc}
+.garden-panel>.environment-layers,.battlefield>.environment-layers{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.garden-panel>:not(.environment-layers),.battlefield>:not(.environment-layers){position:relative;z-index:1}
+.environment-layers>div{position:absolute;inset:-2%;will-change:transform;pointer-events:none}
+.environment-sky{background:linear-gradient(#b9e1ef,#f6f4d8 58%,#cbe4b9);transform:translate(var(--env-far-x,0px),var(--env-far-y,0px));transition:transform .7s ease}
+.environment-sky:after{content:'';position:absolute;top:8%;right:14%;width:95px;height:95px;border-radius:50%;background:#fff8b3;box-shadow:0 0 70px 32px #fff2bd91;animation:env-sun-float 18s ease-in-out infinite}
+.environment-mid{background-image:var(--env-image);background-size:cover;background-position:center 52%;mask-image:linear-gradient(transparent 0%,#000 26%);transform:translate(var(--env-mid-x,0px),var(--env-mid-y,0px)) scale(1.045);transition:transform .8s ease}
+.environment-front{top:auto!important;height:37%;background-image:var(--env-foreground);background-size:100% 100%;background-position:bottom;opacity:.65;transform:translate(var(--env-x,0px),var(--env-y,0px));transition:transform .55s ease;animation:env-foliage 7s ease-in-out infinite}
+.environment-weather{opacity:.45;mix-blend-mode:screen}
+[data-weather="rain"] .environment-weather{background-image:repeating-linear-gradient(110deg,transparent 0 43px,#daf2f99c 44px 45px,transparent 46px 91px);background-size:190px 220px;animation:env-rain .9s linear infinite;opacity:.38}
+[data-weather="sunbeams"] .environment-weather{background-image:linear-gradient(114deg,transparent 18%,#fff6c66b 27%,transparent 35%,transparent 58%,#fff9d37a 66%,transparent 74%);animation:env-beams 12s ease-in-out infinite}
+.environment-light{transition:background 2s ease;mix-blend-mode:multiply}
+[data-daypart="morning"] .environment-light{background:#fff6d020}
+[data-daypart="afternoon"] .environment-light{background:#ecfff51c}
+[data-daypart="dusk"] .environment-light{background:#e9a87842}
+[data-daypart="night"] .environment-light{background:#223c6f8c;mix-blend-mode:multiply}
+[data-daypart="night"] .environment-sky{background:linear-gradient(#172d55,#566b87 61%,#b7c7a1)}
+[data-daypart="night"] .environment-sky:after{background:#f8fae2;box-shadow:0 0 65px 18px #d6e2ff77}
+[data-daypart="night"] .environment-weather{background-image:radial-gradient(circle,#eafed9 1px,transparent 3px);background-size:105px 92px;animation:env-fireflies 7s ease-in-out infinite;opacity:.7}
+[data-biome="thicket"] .environment-sky{background:linear-gradient(#7a748a,#d6af96 62%,#b0c58e)}
+[data-biome="swamp"] .environment-sky{background:linear-gradient(#78a9a6,#b9d4b4 65%,#a4bc9c)}
+[data-biome="redwood"] .environment-sky{background:linear-gradient(#a5b48d,#e5d0a5 62%,#a0b781)}
+[data-biome="twilight"] .environment-sky{background:linear-gradient(#323252,#716795 63%,#9788a9)}
+[data-biome="twilight"] .environment-light{background:#302e655e}
+[data-biome="thicket"] .environment-front{filter:hue-rotate(48deg) saturate(.75)}
+[data-biome="swamp"] .environment-front{filter:hue-rotate(54deg) saturate(.85)}
+[data-biome="redwood"] .environment-front{filter:sepia(.3) saturate(.8)}
+[data-biome="twilight"] .environment-front{filter:hue-rotate(110deg) saturate(.8)}
+@keyframes env-sun-float{50%{transform:translate(-12px,7px)}}
+@keyframes env-foliage{50%{translate:6px 0;rotate:.5deg}}
+@keyframes env-rain{to{background-position:-95px 220px}}
+@keyframes env-beams{50%{opacity:.45;transform:translateX(22px)}}
+@keyframes env-fireflies{50%{background-position:27px -14px;opacity:.35}}
+@media(max-width:650px){.environment-front{height:31%}}
+@media(prefers-reduced-motion:reduce){.environment-layers>div{animation:none!important;transition:none!important}}
+.battlefield .battle-side-label,.battlefield .battle-side>strong,.battlefield .bar-label,.battlefield .battlefield-bottom{color:#254936;text-shadow:0 1px 3px #fff,0 0 8px #fff}
+.battlefield .battle-side>span:last-child{color:#345d42;text-shadow:0 1px 3px #fff}

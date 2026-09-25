@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 400" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="grass" x2="0" y2="1"><stop stop-color="#529449" stop-opacity=".05"/><stop offset="1" stop-color="#376b39" stop-opacity=".65"/></linearGradient>
+  </defs>
+  <path d="M0 350Q100 290 180 360Q290 310 390 365Q510 305 620 360Q760 310 870 363Q960 300 1080 363Q1240 320 1440 355V400H0Z" fill="url(#grass)"/>
+  <g fill="#4d873f" opacity=".53">
+    <path d="M0 400Q35 240 10 170Q61 280 55 400ZM38 400Q110 285 98 235Q141 325 130 400ZM1340 400Q1370 285 1380 185Q1415 285 1400 400ZM1410 400Q1430 280 1440 235V400Z"/>
+    <path d="M198 400q-26-82-30-116q38 58 49 116m17 0q8-75 31-105q-8 64-11 105m740 0q-20-80-18-119q33 62 39 119m55 0q14-82 39-111q-15 66-17 111"/>
+  </g>
+  <g fill="#e5f4cb" opacity=".72">
+    <circle cx="56" cy="346" r="5"/><circle cx="75" cy="367" r="4"/><circle cx="236" cy="345" r="5"/><circle cx="268" cy="365" r="4"/><circle cx="997" cy="353" r="5"/><circle cx="1112" cy="342" r="4"/><circle cx="1393" cy="362" r="6"/>
+  </g>
+</svg>

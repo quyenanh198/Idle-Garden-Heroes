@@ -4,6 +4,8 @@ The PNG source art in `art-source/` was generated with the built-in image genera
 
 Each of the six heroes also has a transparent `-attack.png` action pose in `art-source/` and an optimized `-attack.webp` version in `public/assets/`. Combat crossfades between idle and attack art while Phaser moves the character through the strike and recovery.
 
+The Thicket, Swamp, Redwood, and Twilight combat backgrounds are in `art-source/biome-*.png`, with 1280px WebP copies in `public/assets/`. The original garden glade is the fifth biome background. Runtime sky and foreground foliage layers provide parallax, while tint and weather layers supply time-of-day lighting.
+
 | Asset | File |
 | --- | --- |
 | Sprout Knight | `art-source/sprout-knight.png` |

@@ -366,6 +366,18 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
     }
     showDamage(text, isCrit = false, isParty = false) {
       if (getScreen() !== 'combat' || !canAnimate()) return;
+      if (isCrit && !isParty) {
+        this.cameras.main.shake(85, 0.0025);
+        this.cameras.main.flash(70, 255, 229, 142);
+        if (!this.hitStopTimer) {
+          this.tweens.timeScale = 0.08;
+          this.time.timeScale = 0.08;
+          this.hitStopTimer = window.setTimeout(() => {
+            this.hitStopTimer = null;
+            if (canAnimate()) { this.tweens.timeScale = 1; this.time.timeScale = 1; }
+          }, 65);
+        }
+      }
       const targetX = isParty ? (this.characters[0]?.x || 160) : (this.enemy?.x || 500);
       const targetY = isParty ? (this.characters[0]?.y || 140) - 25 : (this.enemy?.y || 135) - 40;
       const color = isParty ? '#f57474' : (isCrit ? '#ffde59' : '#ffffff');
