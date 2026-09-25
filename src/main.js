@@ -48,6 +48,7 @@ import {
   HERO_SKILLS,
   floorForWave,
   executeTurn,
+  deflectSpore,
   sanitizeTactics,
 } from './game-engine.js';
 
@@ -55,6 +56,7 @@ import { fmt, fmtRate } from './format.js';
 import { createEnvironment } from './environment.js';
 import { initGardenInteractions } from './garden-interactions.js';
 import { pulse } from './haptics.js';
+import { stepDungeon, renderDungeonMap, paintCorridor, FACING, LANDMARKS } from './dungeon.js';
 import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
@@ -115,6 +117,8 @@ function load() {
 let state = load();
 let visuals;
 let activeScreen = 'home';
+let nextSporeAt = Date.now() + 4200;
+let sporeEndsAt = 0;
 let activeTab = 'heroes';
 let selectedHero = 'sprout';
 let lastTick = Date.now();
@@ -224,6 +228,11 @@ app.innerHTML = `
 
       <!-- 1st-Person Perspective Dungeon Corridor Viewport -->
       <section class="battlefield drpg-corridor-frame" aria-label="1st-person dungeon corridor arena">
+        <div class="dungeon-explorer" aria-label="Dungeon exploration">
+          <div class="dungeon-view"><canvas id="dungeon-canvas" width="640" height="330" aria-label="First-person stone corridor"></canvas><div class="dungeon-view-caption">MOSSY CRYPT · STEP <span id="dungeon-step">0</span></div></div>
+          <div class="dungeon-sidebar"><strong>EXPLORER MAP</strong><div class="dungeon-map" id="dungeon-map" role="img" aria-label="Explored dungeon map"></div><span id="dungeon-compass">FACING E</span><div class="dungeon-keys"><button data-dungeon="left" aria-label="Turn left">↶</button><button data-dungeon="forward" aria-label="Move forward">↑</button><button data-dungeon="right" aria-label="Turn right">↷</button><button data-dungeon="back" aria-label="Step back">↓</button></div></div>
+        </div>
+        <button class="spore-projectile" id="spore-projectile" type="button" aria-label="Deflect incoming spore" hidden>✦<small>TAP TO DEFLECT</small></button>
         <div class="corridor-torch torch-left"><span class="torch-flame">🔥</span></div>
         <div class="corridor-torch torch-right"><span class="torch-flame">🔥</span></div>
 
@@ -535,6 +544,7 @@ function renderCombat() {
   combatEnvironment.setBiome(biome.id);
   const owned = HEROES.filter(hero => state.heroes[hero.id]);
   const dungeonDepth = floorForWave(battle.wave);
+  renderDungeon();
 
   const biomeEl = document.querySelector('#battle-biome');
   if (biomeEl) {
@@ -613,6 +623,29 @@ function renderCombat() {
   }).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unitPower(state, unit))} dmg/s</small></div><span class="roster-ready">● READY</span></div>`).join('');
   renderBattleNumbers();
   if (activeScreen === 'combat') visuals?.syncCombat();
+}
+
+function renderDungeon() {
+  const dungeon = state.dungeon;
+  const map = document.querySelector('#dungeon-map');
+  if (!map || !dungeon) return;
+  map.innerHTML = renderDungeonMap(dungeon);
+  map.setAttribute('aria-label', `Dungeon map, step ${dungeon.steps}, facing ${FACING[dungeon.facing]}`);
+  document.querySelector('#dungeon-step').textContent = dungeon.steps;
+  document.querySelector('#dungeon-compass').textContent = `FACING ${FACING[dungeon.facing]}`;
+  paintCorridor(document.querySelector('#dungeon-canvas'), dungeon, Date.now());
+}
+
+function moveDungeon(action) {
+  const before = state.dungeon;
+  state.dungeon = stepDungeon(before, action);
+  renderDungeon();
+  if (before.x !== state.dungeon.x || before.y !== state.dungeon.y) {
+    const landmark = LANDMARKS[`${state.dungeon.x},${state.dungeon.y}`];
+    addCombatLog({ type: 'info', text: landmark ? `Discovered ${landmark} in the crypt!` : `Party advances to step ${state.dungeon.steps}.` });
+    pulse('tap', state.settings.haptics);
+  }
+  save();
 }
 
 function renderBattleNumbers() {
@@ -1091,6 +1124,24 @@ app.addEventListener('click', (event) => {
   }
 
   // Manual Turn button
+  const dungeonButton = event.target.closest('[data-dungeon]');
+  if (dungeonButton) { moveDungeon(dungeonButton.dataset.dungeon); return; }
+
+  if (event.target.closest('#spore-projectile')) {
+    if (sporeEndsAt > Date.now()) {
+      const damage = deflectSpore(state);
+      if (damage) {
+        addCombatLog({ type: 'guard', text: `Spore swatted back! ${fmt(damage)} bonus damage; next enemy strike blocked.` });
+        pulse('crit', state.settings.haptics);
+        renderBattleNumbers();
+        save();
+      }
+    }
+    sporeEndsAt = 0;
+    document.querySelector('#spore-projectile').hidden = true;
+    return;
+  }
+
   if (event.target.closest('#btn-manual-turn')) {
     executeCombatTurn();
     return;
@@ -1304,6 +1355,14 @@ function tick() {
   const waveBefore = state.battle.wave;
 
   if (activeScreen === 'combat') {
+    paintCorridor(document.querySelector('#dungeon-canvas'), state.dungeon, now);
+    const spore = document.querySelector('#spore-projectile');
+    if (sporeEndsAt && now >= sporeEndsAt) { spore.hidden = true; sporeEndsAt = 0; }
+    if (!sporeEndsAt && now >= nextSporeAt && state.battle.enemyHp > 0) {
+      spore.hidden = false;
+      sporeEndsAt = now + 1600;
+      nextSporeAt = now + 4500 + Math.random() * 2500;
+    }
     if ((state.tactics?.mode || 'auto') === 'auto') {
       if (now - lastAutoTurn >= (state.gardenBuff?.until > now ? 900 : 1200)) {
         lastAutoTurn = now;
@@ -1376,6 +1435,11 @@ import('./visuals.js').then(({ initVisuals }) => {
 }).catch(error => console.warn('Animated scenes could not load; static characters remain available.', error));
 if (offlineSeconds > 5) toast(`Welcome back! Your heroes gathered ${fmt(offlineGain)} leaves while you were away.`);
 setInterval(tick, 100);
+window.addEventListener('keydown', event => {
+  if (activeScreen !== 'combat' || event.altKey || event.ctrlKey || event.metaKey || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || '')) return;
+  const action = { KeyW: 'forward', ArrowUp: 'forward', KeyS: 'back', ArrowDown: 'back', KeyA: 'left', ArrowLeft: 'left', KeyD: 'right', ArrowRight: 'right' }[event.code];
+  if (action) { event.preventDefault(); moveDungeon(action); }
+});
 setInterval(save, 5000);
 document.addEventListener('visibilitychange', () => {
   if (pausedByOtherTab) return;

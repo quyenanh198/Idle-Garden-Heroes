@@ -225,9 +225,9 @@ gantt
 - [x] Upgrade combat projectiles with colored light trails and directional impact sparks.
 
 #### Milestone C: "The Garden Crypts" (Days 10–14)
-- [ ] Build first-person pseudo-3D dungeon hallway viewport for Wizardry mode.
-- [ ] Implement interactive Fog-of-War mini-map with cardinal direction compass.
-- [ ] Implement Spore Swatter deflection mechanic (tap enemy attacks mid-air).
+- [x] Build first-person pseudo-3D dungeon hallway viewport for Wizardry mode.
+- [x] Implement interactive Fog-of-War mini-map with cardinal direction compass.
+- [x] Implement Spore Swatter deflection mechanic (tap enemy attacks mid-air).
 
 #### Milestone D: "Polishing & Optimization" (Days 15–16)
 - [ ] Pack hero and enemy sprites into unified WebP Texture Atlas.

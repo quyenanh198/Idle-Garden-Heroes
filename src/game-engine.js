@@ -1,3 +1,5 @@
+import { newDungeon, sanitizeDungeon } from './dungeon.js';
+
 export const HEROES = [
   { id: 'sprout', name: 'Sprout Knight', role: 'The cheerful first defender', emoji: '🛡️', plant: '🌱', baseLps: 1, unlockCost: 0, upgradeBase: 12, color: 'green', plot: 0 },
   { id: 'rose', name: 'Rose Mage', role: 'Magic in full bloom', emoji: '🪄', plant: '🌹', baseLps: 4, unlockCost: 65, upgradeBase: 55, color: 'pink', plot: 1 },
@@ -145,7 +147,8 @@ export const DEFAULT_STATE = {
   plots: 1,
   heroes: { sprout: 1 },
   legion: { scout: 0, archer: 0, guardian: 0 },
-  battle: { wave: 1, enemyHp: 24, partyHp: 110, wins: 0, earned: 0, energy: 0, ultActiveUntil: 0 },
+  battle: { wave: 1, enemyHp: 24, partyHp: 110, wins: 0, earned: 0, energy: 0, ultActiveUntil: 0, parryReady: false },
+  dungeon: newDungeon(),
   boosts: { harvest: 0, power: 0, vitality: 0 },
   artifacts: { sunlight_crystal: 0, fertile_soil: 0, eternal_root: 0, golden_can: 0, clover_fortune: 0 },
   goldenSeeds: 0,
@@ -500,6 +503,8 @@ export function sanitizeTactics(raw) {
 export function executeTurn(state, manualActions = null, now = Date.now()) {
   if (!state?.battle) return null;
   const battle = state.battle;
+  const parryReady = battle.parryReady === true;
+  battle.parryReady = false;
   const tactics = state.tactics || DEFAULT_TACTICS;
   const logs = [];
   const maxParty = partyMaxHp(state);
@@ -646,14 +651,14 @@ export function executeTurn(state, manualActions = null, now = Date.now()) {
     targetedRow = 'back';
   }
 
-  const roundedIncoming = Math.max(1, Math.round(finalIncoming));
+  const roundedIncoming = parryReady ? 0 : Math.max(1, Math.round(finalIncoming));
   battle.partyHp = Math.max(0, battle.partyHp - roundedIncoming);
 
   logs.push({
-    type: 'enemy',
+    type: parryReady ? 'guard' : 'enemy',
     targetedRow,
     damage: roundedIncoming,
-    text: `⚠️ ${enemy.emoji} ${enemy.name} retaliates against the ${targetedRow} row for ${fmtNumber(roundedIncoming)} damage!${guardReduction > 0 ? ' (Guard active)' : ''}`,
+    text: parryReady ? `🛡️ Deflected spore! ${enemy.name}'s attack misses the party.` : `⚠️ ${enemy.emoji} ${enemy.name} retaliates against the ${targetedRow} row for ${fmtNumber(roundedIncoming)} damage!${guardReduction > 0 ? ' (Guard active)' : ''}`,
   });
 
   // Check if party defeated
@@ -678,6 +683,14 @@ export function executeTurn(state, manualActions = null, now = Date.now()) {
   };
 }
 
+export function deflectSpore(state) {
+  if (!state?.battle || state.battle.parryReady) return 0;
+  const damage = Math.max(1, Math.round(enemyMaxHp(state.battle.wave) * .07));
+  state.battle.enemyHp = Math.max(0, state.battle.enemyHp - damage);
+  state.battle.parryReady = true;
+  return damage;
+}
+
 export function sanitizeSave(raw) {
   if (!raw || typeof raw !== 'object') {
     return {
@@ -690,6 +703,7 @@ export function sanitizeSave(raw) {
       tactics: sanitizeTactics(null),
       settings: { ...DEFAULT_STATE.settings },
       battle: { ...DEFAULT_STATE.battle },
+      dungeon: newDungeon(),
       lastSaved: Date.now(),
     };
   }
@@ -761,6 +775,7 @@ export function sanitizeSave(raw) {
       until: Object.hasOwn(heroes, raw.gardenBuff?.heroId) && Number.isFinite(Number(raw.gardenBuff?.until))
         ? Math.max(0, Math.min(now + LUSH_BLOOM_DURATION_MS, Number(raw.gardenBuff.until))) : 0,
     },
+    dungeon: sanitizeDungeon(raw.dungeon),
     bloomCount: Number.isFinite(Number(raw.bloomCount)) ? Math.max(0, Math.floor(Number(raw.bloomCount))) : 0,
     lifetimeWins: totalWins,
     equipped,
@@ -779,6 +794,7 @@ export function sanitizeSave(raw) {
       wins,
       earned: Number.isFinite(Number(raw.battle?.earned)) ? Math.max(0, Number(raw.battle?.earned)) : 0,
       energy: Number.isFinite(energyVal) ? Math.min(100, Math.max(0, energyVal)) : 0,
+      parryReady: raw.battle?.parryReady === true,
       // A burst can never have more than ULT_DURATION_MS left; blocks edited saves granting permanent 2×.
       ultActiveUntil: Number.isFinite(Number(raw.battle?.ultActiveUntil))
         ? Math.max(0, Math.min(now + ULT_DURATION_MS, Number(raw.battle.ultActiveUntil)))
