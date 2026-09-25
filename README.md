@@ -163,6 +163,7 @@ Idle Garden Hero/
 │   ├── regressions.test.js       # Regression & boundary edge case tests
 │   ├── tap-pose.test.js          # Phaser animation & squash/stretch tests
 │   └── format.test.js            # Number formatting tests
+├── HANDOFF.md                    # Detailed roadmap for graphics, animation & interaction upgrades
 ├── AUDIT.md                      # In-depth architectural audit & optimization report
 ├── ASSETS.md                     # Asset catalog & illustration prompts
 ├── package.json
@@ -281,6 +282,7 @@ docker run -p 8095:8095 garden
 
 ## 📜 Documentation
 
+- [HANDOFF.md](HANDOFF.md): Engineering hand-off document with detailed blueprints for upgrading graphics, animations, first-person DRPG viewport, and tactile micro-interactions.
 - [AUDIT.md](AUDIT.md): Detailed architectural analysis, performance bottleneck fixes, and security audit.
 - [ASSETS.md](ASSETS.md): Complete illustration guide, prompt recipes, and styling notes.
 
