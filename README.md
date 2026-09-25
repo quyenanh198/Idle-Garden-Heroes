@@ -240,12 +240,12 @@ npm test
 
 ## 🔒 Security & Privacy Architecture
 
-Idle Garden Hero follows a strict **zero-trust, offline-first, client-side only** security architecture:
+Idle Garden Hero saves locally by default. When served under Chat with a valid session, it also syncs saves to that account through the same-origin `/api/save` endpoint.
 
-1. **Zero External Accounts & Tracking:**
-   - No cookies, session tokens, or external identity checks.
-   - All game state is strictly saved locally via `localStorage` on the player's device.
-   - Zero telemetry or network requests during gameplay.
+1. **Save ownership:**
+   - Browser play uses `localStorage`; Chat play keeps a separate local save per account and an SQLite copy on the game server.
+   - The game server checks the Chat session before reading or writing an account save and rejects writes from another account or an older save.
+   - No analytics or tracking requests are sent during gameplay.
 
 2. **Strict Content Security Policy (CSP):**
    - `default-src 'self'`
@@ -253,13 +253,13 @@ Idle Garden Hero follows a strict **zero-trust, offline-first, client-side only*
    - `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`
    - `font-src https://fonts.gstatic.com`
    - `img-src 'self' data: blob:` (Phaser textures and canvas buffers only)
-   - `connect-src 'self'` (No outbound network calls to external APIs)
-   - `frame-ancestors 'none'` (Anti-clickjacking / anti-framing protection)
+   - `connect-src 'self'` (The browser only contacts its own origin)
+   - `frame-ancestors 'self'` (Allows same-origin Chat embedding)
 
 3. **Anti-Clickjacking & Isolation Headers:**
-   - `X-Frame-Options: DENY` (disallows iframe embedding across all origins)
+   - `X-Frame-Options: SAMEORIGIN` (allows only same-origin embedding)
    - `X-Content-Type-Options: nosniff` (prevents MIME confusion attacks)
-   - `Referrer-Policy: strict-origin-when-cross-origin`
+   - `Referrer-Policy: same-origin`
    - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`
    - `Cross-Origin-Opener-Policy: same-origin`
    - `Cross-Origin-Resource-Policy: same-origin`
@@ -267,15 +267,15 @@ Idle Garden Hero follows a strict **zero-trust, offline-first, client-side only*
 4. **Path Traversal & Request Sanitization:**
    - Static file server normalizes paths, strips directory traversals (`..`), rejects null bytes (`\0`), and confines all file resolutions strictly within `dist/`.
    - Hidden files and dotfiles are denied.
-   - Non-GET/HEAD HTTP methods are immediately rejected with `405 Method Not Allowed`.
+   - Static files only accept GET/HEAD; `/api/save` accepts authenticated GET and PUT.
 
 5. **Client-Side Data Sanitization (`sanitizeSave`):**
    - Guards against prototype pollution, type coercion, `NaN`, `Infinity`, negative integers, and corrupted JSON.
 
 ```sh
-# Run standalone production container
+# Run the production container with persistent save storage
 docker build -t garden .
-docker run -p 8095:8095 garden
+docker run -p 8095:8095 -v garden-data:/data garden
 ```
 
 ---
