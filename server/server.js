@@ -25,8 +25,11 @@ const TYPES = {
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  'font-src https://fonts.gstatic.com',
+  // Font giờ nằm ngay trong bản build (assets/*.woff2), không tải từ Google nữa. Để
+  // font-src chỉ có fonts.gstatic.com thì trình duyệt chặn font của chính game và âm
+  // thầm rơi về font hệ thống — không lỗi nào hiện ra, chỉ thấy chữ sai kiểu.
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "connect-src 'self'",
