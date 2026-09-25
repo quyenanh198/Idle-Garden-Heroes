@@ -270,3 +270,84 @@ export function playBloom() {
     osc.stop(start + 0.65);
   });
 }
+
+export function playSpellCast() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sawtooth';
+  osc.frequency.setValueAtTime(550, now);
+  osc.frequency.exponentialRampToValueAtTime(1100, now + 0.18);
+
+  gain.gain.setValueAtTime(0.18, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+  osc.connect(gain);
+  gain.connect(output(ctx));
+  osc.start(now);
+  osc.stop(now + 0.23);
+}
+
+export function playHeal() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+
+  [523.25, 659.25, 783.99].forEach((freq, i) => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const start = now + i * 0.06;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, start);
+    gain.gain.setValueAtTime(0.2, start);
+    gain.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
+    osc.connect(gain);
+    gain.connect(output(ctx));
+    osc.start(start);
+    osc.stop(start + 0.25);
+  });
+}
+
+export function playShieldGuard() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(140, now);
+  osc.frequency.exponentialRampToValueAtTime(80, now + 0.14);
+
+  gain.gain.setValueAtTime(0.25, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+  osc.connect(gain);
+  gain.connect(output(ctx));
+  osc.start(now);
+  osc.stop(now + 0.19);
+}
+
+export function playTurnSelect() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(620, now);
+  osc.frequency.exponentialRampToValueAtTime(880, now + 0.04);
+
+  gain.gain.setValueAtTime(0.12, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+
+  osc.connect(gain);
+  gain.connect(output(ctx));
+  osc.start(now);
+  osc.stop(now + 0.06);
+}
+

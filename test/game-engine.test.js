@@ -29,6 +29,11 @@ import {
   canBloomAnew,
   calculateGoldenSeeds,
   bloomAnew,
+  DEFAULT_TACTICS,
+  HERO_SKILLS,
+  floorForWave,
+  sanitizeTactics,
+  executeTurn,
 } from '../src/game-engine.js';
 
 describe('Game Engine - Math & Formulas', () => {
@@ -392,5 +397,103 @@ describe('Game Engine - Save Sanitization & Corruption Resistance', () => {
     assert.equal(clean.artifacts.sunlight_crystal, 5);
     assert.equal(clean.artifacts.invalid_artifact, undefined);
     assert.equal(clean.equipped, null); // Locked accessory filtered out
+    assert.equal(clean.tactics.mode, 'auto');
+    assert.equal(clean.tactics.formation.sprout, 'front');
+  });
+});
+
+describe('Game Engine - Wizardry Turn-Based Tactics & Dungeon Crawler', () => {
+  it('calculates dungeon depth and boss chambers accurately', () => {
+    const f1 = floorForWave(1);
+    assert.equal(f1.floor, 1);
+    assert.equal(f1.room, 1);
+    assert.equal(f1.isBossRoom, false);
+    assert.equal(f1.label, 'DEPTH B1F · ROOM 1');
+
+    const f5 = floorForWave(5);
+    assert.equal(f5.floor, 1);
+    assert.equal(f5.room, 5);
+    assert.equal(f5.isBossRoom, true);
+    assert.ok(f5.label.includes('BOSS CHAMBER'));
+
+    const f23 = floorForWave(23);
+    assert.equal(f23.floor, 5);
+    assert.equal(f23.room, 3);
+  });
+
+  it('sanitizes and preserves formation, attack order, and action presets', () => {
+    const custom = {
+      mode: 'manual',
+      formation: { sprout: 'back', rose: 'front' },
+      attackOrder: ['rose', 'sprout'],
+      actions: { sprout: 'guard', rose: 'curse' },
+    };
+    const clean = sanitizeTactics(custom);
+    assert.equal(clean.mode, 'manual');
+    assert.equal(clean.formation.sprout, 'back');
+    assert.equal(clean.formation.rose, 'front');
+    assert.equal(clean.actions.sprout, 'guard');
+    assert.equal(clean.actions.rose, 'curse');
+    // Sprout and rose are first in attack order
+    assert.equal(clean.attackOrder[0], 'rose');
+    assert.equal(clean.attackOrder[1], 'sprout');
+  });
+
+  it('executes a tactical combat turn with hero attack and enemy retaliations', () => {
+    const state = sanitizeSave(null);
+    state.heroes = { sprout: 5, rose: 3 };
+    state.battle = {
+      wave: 2,
+      enemyHp: 200,
+      partyHp: 150,
+      wins: 1,
+      earned: 10,
+      energy: 20,
+      ultActiveUntil: 0,
+    };
+    state.tactics = {
+      mode: 'auto',
+      formation: { sprout: 'front', rose: 'back', oak: 'front', daisy: 'back', moss: 'front', sunflower: 'back' },
+      attackOrder: ['rose', 'sprout'],
+      actions: { sprout: 'slash', rose: 'thorn_volley' },
+    };
+
+    const res = executeTurn(state);
+    assert.ok(res.success);
+    assert.ok(res.damageDealt > 0);
+    assert.ok(res.damageTaken > 0);
+    assert.ok(res.logs.length >= 2);
+    // Rose acts before Sprout as configured in attackOrder
+    assert.ok(res.logs[0].text.includes('Rose Mage'));
+    assert.ok(res.logs[1].text.includes('Sprout Knight'));
+  });
+
+  it('applies front-row guard damage reduction during turn execution', () => {
+    const stateUnguarded = sanitizeSave(null);
+    stateUnguarded.heroes = { sprout: 5 };
+    stateUnguarded.battle = { wave: 10, enemyHp: 1000, partyHp: 300 };
+    stateUnguarded.tactics.actions.sprout = 'slash';
+    const resUnguarded = executeTurn(stateUnguarded);
+
+    const stateGuarded = sanitizeSave(null);
+    stateGuarded.heroes = { sprout: 5 };
+    stateGuarded.battle = { wave: 10, enemyHp: 1000, partyHp: 300 };
+    stateGuarded.tactics.actions.sprout = 'guard';
+    const resGuarded = executeTurn(stateGuarded);
+
+    // Guarding reduces incoming damage by 35%
+    assert.ok(resGuarded.damageTaken < resUnguarded.damageTaken);
+  });
+
+  it('applies healing skills to restore party vitality during turn', () => {
+    const state = sanitizeSave(null);
+    state.heroes = { daisy: 5 };
+    state.battle = { wave: 2, enemyHp: 500, partyHp: 30 }; // party is damaged
+    state.tactics.actions.daisy = 'heal';
+
+    const maxHp = partyMaxHp(state);
+    const res = executeTurn(state);
+    assert.ok(res.logs.some(l => l.type === 'heal'));
+    assert.ok(state.battle.partyHp > 30);
   });
 });

@@ -3,7 +3,7 @@
 > A cozy, mobile-friendly incremental idle garden game with active tap harvesting, automated RPG glade defense, Phaser 3 animations, built-in Web Audio synthesis, and an Ancient Artifact prestige system.
 
 [![CI Status](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml/badge.svg)](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml)
-[![Tests](https://img.shields.io/badge/tests-37%20passed-brightgreen.svg)](test/game-engine.test.js)
+[![Tests](https://img.shields.io/badge/tests-54%20passed-brightgreen.svg)](test/game-engine.test.js)
 [![Vite](https://img.shields.io/badge/Vite-7.3-646CFF.svg?logo=vite)](https://vitejs.dev/)
 [![Phaser](https://img.shields.io/badge/Phaser-3.90-ff2442.svg?logo=phaser)](https://phaser.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -28,9 +28,23 @@
 - **Critical Taps:** 12% chance to land a **💥 CRIT!** for **3× leaf payout**, accompanied by dynamic gold floating text and squash-and-stretch particle bursts.
 - **Plot Expansion:** Unlock up to 6 garden plots to welcome new heroes with escalating production rates.
 
-### 2. ⚔️ Auto-Battle & Combat Progression
-- **Automated Glade Defense:** Recruited heroes and legion troops form an expedition force that automatically battles waves of glade creatures.
-- **Team Formation:** Up to six heroes stand together in a two-row formation. Each hero has a separate combat pose and joins a staggered team attack animation.
+### 2. 🏰 Wizardry™-Like Dungeon Crawler & Turn-Based Tactics
+- **1st-Person Perspective Corridor:** Atmospheric dungeon crawler corridor with flickering torches, depth tracker (`DEPTH B<F>F · ROOM <R>`), stone masonry perspective, and retro scanline battle aesthetic.
+- **Front & Back Row Formations:**
+  - **🛡️ Front Row (Vanguard):** Absorbs 75% of single-target enemy attacks and acts as a shield for rear squishies.
+  - **🏹 Back Row (Rearguard):** Receives 30% reduced damage, providing a safe haven for mages and healers to cast spells uninterrupted.
+- **Distinct Hero Skill Actions:**
+  - *Sprout Knight:* Basic Strike (1.0×), Sprout Guard (+30% party mitigation), Thorn Cleave (1.5×).
+  - *Rose Mage:* Petal Rain (1.35×), Thorn Barrage (1.8×), Sylvan Ward (+25% mitigation).
+  - *Oak Sentinel:* Heavy Branch Bash (1.1×), Iron Bark Guard (+35% party mitigation), Root Taunt (draws attacks).
+  - *Daisy Priest:* Pollen Blossom (Restores 22% Party HP), Meadow Grace (Restores 35% Party HP), Daisy Dart (1.0×).
+  - *Moss Golem:* Boulder Smash (1.65×), Moss Armor (+40% party mitigation), Creeping Spores (Poison DoT).
+  - *Sunflower Sage:* Solar Beam (2.2×), Radiant Dawn (Heals +15% HP & +15% Ult Energy), Solar Flares (1.5×).
+- **Preset Auto & Manual Tactics:**
+  - **⚡ Auto-Battle Mode:** Follows your saved party formation, attack order priority, and skill presets every turn.
+  - **🕹️ Manual Step Mode:** Pause continuous battle and step through individual turns (`EXECUTE TURN ➔`) with full tactical oversight.
+- **Tactics Configuration Modal:** Easily switch heroes between Front and Back rows, re-order attack priority (1st through 6th), and select skill presets with instant auto-save.
+- **Retro Typewriter Combat Log:** Live terminal feed detailing every hero strike, healing blossom, shield activation, enemy retaliation, and boss defeat.
 - **5 Themed Biomes:** Journey across 150 progressive combat waves:
   - 🌼 **Whispering Glade** *(Waves 1–25)*
   - 🌵 **Thorny Thicket** *(Waves 26–50)*
@@ -39,7 +53,7 @@
   - 🌙 **Twilight Grove** *(Waves 101–150)*
 - **Stalemate Feedback:** If the legion can't beat the current wave, the battle banner switches to *"Legion too weak · upgrade to advance"* instead of looping silently.
 - **Boss Waves:** Face formidable shadow bosses every 5 waves for elevated Leaf Point rewards.
-- **Tactile Combat VFX:** Hero-specific color projectiles, enemy spore attacks with party pushback, hit spark reactions, and floating damage numbers (white for normal, gold for crits, red for party damage).
+- **Tactile Combat VFX:** Hero-specific color projectiles, enemy spore attacks with party pushback, hit spark reactions, and floating damage numbers.
 
 ### 3. ☀️ "Sunlight Burst" Ultimate Skill
 - **Energy Gauge:** Charges passively at 4%/sec and gains +5% bonus on every wave victory.

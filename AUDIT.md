@@ -216,3 +216,39 @@ A second pass found the issues below. All are fixed, with tests in `test/regress
 - Added `vite.config.js` with a relative `base` so the build works under a sub-path (e.g. GitHub Pages).
 - Added a favicon, web manifest, and network-first service worker.
 - Root screenshots moved into `screenshots/`; the stray `.chrome-combat/` browser profile was deleted.
+
+---
+
+## 7. Wizardry™-Like Dungeon Crawler & Tactical Combat Engine (September 25, 2026)
+
+An advanced tactical layer was implemented on top of the idle combat loop to deliver a classic 1st-person Wizardry™ dungeon crawler RPG experience while maintaining 100% idle progression compatibility.
+
+### 7.1 Architecture & Design Decisions
+1. **Front & Back Row Formation Mechanics:**
+   - **Front Row (Vanguard):** Takes 75% of single-target enemy attacks and provides tanking/mitigation for the team.
+   - **Back Row (Rearguard):** Takes 30% reduced damage, allowing squishy sorceresses and healers to survive and channel key abilities.
+2. **Specialized Hero Actions & Skills (`HERO_SKILLS`):**
+   - Each plant hero possesses specialized action archetypes (Attack, Shield/Guard, Taunt, Heal, Energy Support, DoT).
+   - *Sprout Knight:* Basic Strike, Sprout Guard (+30% party mitigation), Thorn Cleave (1.5×).
+   - *Rose Mage:* Petal Rain, Thorn Barrage (1.8×), Sylvan Ward (+25% mitigation).
+   - *Oak Sentinel:* Heavy Branch Bash, Iron Bark Guard (+35% party mitigation), Root Taunt.
+   - *Daisy Priest:* Pollen Blossom (22% party heal), Meadow Grace (35% party heal), Daisy Dart.
+   - *Moss Golem:* Boulder Smash (1.65×), Moss Armor (+40% mitigation), Creeping Spores (poison DoT).
+   - *Sunflower Sage:* Solar Beam (2.2×), Radiant Dawn (+15% party heal & +15% ult charge), Solar Flares (1.5×).
+3. **Turn Execution Engine (`executeTurn`):**
+   - Sorts acting heroes by `tactics.attackOrder`.
+   - Dispatches hero turns, mitigations, and heals, followed by garden legion strikes.
+   - Dispatches enemy retaliation targeted probabilistically based on Front/Back row formation.
+   - Outputs structured combat event logs for every action with typewriter retro terminal rendering.
+4. **Preset Auto-Battle & Manual Step Modes:**
+   - **Auto Mode:** Automatically runs turn-based combat every 1.2s on the combat screen according to player's preset formations and skills, while offline/background idle progression seamlessly uses `advanceCombat(state, dt)`.
+   - **Manual Mode:** Gives players full tactical control to step through combat turn-by-turn with `[ EXECUTE TURN ➔ ]`.
+5. **Tactics Configuration Modal:**
+   - Interactive dialog allowing players to toggle Front/Back rows per hero, adjust 1st–6th attack priority order, and assign skill presets with instant validation and save sanitization (`sanitizeTactics`).
+6. **1st-Person Perspective Viewport & Audio Synthesis:**
+   - Authentic dungeon crawler corridor with depth indicator (`DEPTH B<F>F · ROOM <R>`), stone perspective framing, and flickering wall torches.
+   - Native Web Audio synthesis added for `playSpellCast()`, `playHeal()`, `playShieldGuard()`, and `playTurnSelect()`.
+
+### 7.2 Automated Test Coverage & Verification
+- Test suite expanded to **54 passing unit tests** across 8 test suites.
+- Production bundle cleanly compiled via Vite with zero lint/build errors.

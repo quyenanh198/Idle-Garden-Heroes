@@ -41,6 +41,11 @@ import {
   bloomAnew,
   advanceCombat,
   sanitizeSave,
+  DEFAULT_TACTICS,
+  HERO_SKILLS,
+  floorForWave,
+  executeTurn,
+  sanitizeTactics,
 } from './game-engine.js';
 
 import { fmt, fmtRate } from './format.js';
@@ -54,6 +59,10 @@ import {
   playVictory,
   playUlt,
   playBloom,
+  playSpellCast,
+  playHeal,
+  playShieldGuard,
+  playTurnSelect,
 } from './audio.js';
 
 const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
@@ -108,6 +117,8 @@ let toastTimer;
 let resetting = false;
 let pausedByOtherTab = false;
 let lastGardenCount = '';
+let lastAutoTurn = Date.now();
+let modalTactics = null;
 const offlineSeconds = Math.min(8 * 60 * 60, Math.max(0, (Date.now() - state.lastSaved) / 1000));
 const getLps = () => lps(state);
 const getCombatPower = () => combatPower(state);
@@ -171,9 +182,163 @@ app.innerHTML = `
       </section>
     </main>
     <main id="combat-screen" class="screen-view" hidden>
-      <section class="combat-intro"><div><div class="eyebrow">✦ &nbsp; THE GLADE NEEDS YOU</div><h1>Fight as <em>one team.</em></h1><p>Every hero and troop joins the same battle. Watch their attacks flow together.</p></div><div class="combat-wave-pill">⚔️ &nbsp; WAVE <strong id="wave-label">1</strong></div></section>
-      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span></div><div class="battle-squad-banner"><div><small>YOUR GARDEN TEAM</small><strong id="squad-banner-count">1 hero ready</strong></div><div class="squad-portraits" id="squad-portraits"></div><span class="team-attack-callout">✦ UNITED ATTACK</span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">HERO FORMATION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Team</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
-      <section class="combat-dashboard"><div class="combat-heading"><div><span class="section-kicker">YOUR ADVENTURE SO FAR</span><h2>Battle camp</h2></div><button class="return-garden" data-screen="garden">Upgrade heroes ${icon('arrow', 17)}</button></div><div class="combat-stat-grid"><div class="combat-stat"><span class="combat-stat-icon">⚔️</span><small>LEGION POWER</small><strong id="combat-power"></strong><p>Damage per second</p></div><div class="combat-stat"><span class="combat-stat-icon">🏆</span><small>WAVES CLEARED</small><strong id="waves-cleared"></strong><p>One victory at a time</p></div><div class="combat-stat"><span class="combat-stat-icon">🍃</span><small>BATTLE LEAVES</small><strong id="battle-earned"></strong><p>Earned from victories</p></div></div><div class="combat-lower"><div class="legion-card"><div class="card-heading"><div><h3>Heroes on the front line</h3><p>Every recruited hero joins the fight</p></div><span class="tiny-badge" id="legion-badge"></span></div><div id="legion-roster"></div></div><div class="battle-tip"><span>🌼</span><div><strong>Stronger roots, stronger heroes.</strong><p>Hero levels boost both Leaf Point production and battle damage. Win waves to earn bonus leaves, then return to the garden to grow your legion.</p></div><button data-screen="garden">Visit your garden ${icon('arrow', 16)}</button></div></div></section>
+      <section class="combat-intro">
+        <div>
+          <div class="eyebrow">✦ &nbsp; DUNGEON EXPEDITION · WIZARDRY DRPG</div>
+          <h1>Fight as <em>one party.</em></h1>
+          <p>Lead your heroes through mossy underground corridors with front/back formations and tactical skills.</p>
+        </div>
+        <div class="combat-intro-badges">
+          <div class="drpg-depth-badge" id="drpg-depth-badge">
+            <span class="depth-icon">🏰</span>
+            <strong id="drpg-depth-label">DEPTH B1F · ROOM 1</strong>
+          </div>
+          <span id="wave-label" style="display:none">1</span>
+        </div>
+      </section>
+
+      <!-- Tactics & Mode Action Bar -->
+      <section class="drpg-controls-bar">
+        <div class="drpg-controls-left">
+          <button id="btn-toggle-mode" class="drpg-mode-toggle active-auto" type="button" title="Toggle Auto / Manual mode">
+            <span class="mode-pulse-dot"></span>
+            <strong id="drpg-mode-text">AUTO BATTLE</strong>
+            <small>Click to toggle</small>
+          </button>
+          <button id="btn-open-tactics" class="drpg-tactics-button" type="button">
+            ⚙️ Formation & Tactics
+          </button>
+        </div>
+        <div class="drpg-controls-right">
+          <button id="btn-manual-turn" class="drpg-manual-turn-btn" type="button" style="display: none;">
+            ⚔️ EXECUTE TURN ➔
+          </button>
+        </div>
+      </section>
+
+      <!-- 1st-Person Perspective Dungeon Corridor Viewport -->
+      <section class="battlefield drpg-corridor-frame" aria-label="1st-person dungeon corridor arena">
+        <div class="corridor-torch torch-left"><span class="torch-flame">🔥</span></div>
+        <div class="corridor-torch torch-right"><span class="torch-flame">🔥</span></div>
+
+        <div class="battlefield-top">
+          <span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span>
+          <span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span>
+        </div>
+
+        <div class="battle-squad-banner">
+          <div><small>YOUR GARDEN TEAM</small><strong id="squad-banner-count">1 hero ready</strong></div>
+          <div class="squad-portraits" id="squad-portraits"></div>
+          <span class="team-attack-callout">✦ UNITED ATTACK</span>
+        </div>
+
+        <div class="battle-arena">
+          <div class="battle-side legion-side">
+            <div class="battle-side-label">EXPEDITION PARTY</div>
+            <div class="battle-figures" id="battle-figures"></div>
+            <strong>Garden Party</strong>
+            <span id="legion-count"></span>
+          </div>
+          <div class="battle-center">
+            <span class="battle-spark">✦</span>
+            <div class="battle-vs">VS</div>
+            <span class="battle-spark">✦</span>
+          </div>
+          <div class="battle-side enemy-side">
+            <div class="battle-side-label" id="enemy-type"></div>
+            <div class="enemy-figure" id="enemy-figure"></div>
+            <strong id="enemy-name"></strong>
+            <span id="enemy-wave"></span>
+          </div>
+        </div>
+
+        <div class="battle-bars">
+          <div class="battle-bar-block">
+            <div class="bar-label"><span>💚 &nbsp; Party HP</span><strong id="party-hp-label"></strong></div>
+            <div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div>
+          </div>
+          <div class="battle-bar-block">
+            <div class="bar-label"><span>❤️ &nbsp; Enemy HP</span><strong id="enemy-hp-label"></strong></div>
+            <div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div>
+          </div>
+        </div>
+
+        <div class="ult-row">
+          <button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst">
+            <span class="ult-icon">☀️</span>
+            <span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span>
+            <span class="ult-tag">2× DMG · HEAL 40%</span>
+          </button>
+          <div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div>
+        </div>
+
+        <div class="battlefield-bottom">
+          <span>✨ &nbsp; Front Row shields Back Row. Customize skills in Tactics. Unleash Sunlight Burst when charged.</span>
+          <span id="battle-reward"></span>
+        </div>
+      </section>
+
+      <!-- Dual-Row Formation Tactical HUD -->
+      <section class="drpg-formation-hud">
+        <div class="formation-hud-column vanguard-col">
+          <div class="formation-hud-header">
+            <span class="formation-badge vanguard">🛡️ FRONT ROW (VANGUARD)</span>
+            <small>75% incoming single-target focus · Shields Rearguard</small>
+          </div>
+          <div class="formation-member-chips" id="drpg-front-row"></div>
+        </div>
+        <div class="formation-hud-column rearguard-col">
+          <div class="formation-hud-header">
+            <span class="formation-badge rearguard">🏹 BACK ROW (REARGUARD)</span>
+            <small>30% damage reduction · Focuses ranged & support spells</small>
+          </div>
+          <div class="formation-member-chips" id="drpg-back-row"></div>
+        </div>
+      </section>
+
+      <!-- Retro Dungeon Terminal Battle Log -->
+      <section class="drpg-log-panel">
+        <div class="drpg-log-header">
+          <div class="log-header-left">
+            <span class="terminal-dot"></span>
+            <strong>📜 EXPEDITION COMBAT LOG</strong>
+          </div>
+          <button id="btn-clear-combat-log" class="drpg-log-clear-btn" type="button">Clear Log</button>
+        </div>
+        <div class="drpg-log-feed" id="combat-log-feed" role="log" aria-live="polite">
+          <div class="drpg-log-line info">✦ Party steps into the dungeon corridor. Formation ready.</div>
+        </div>
+      </section>
+
+      <!-- Combat Dashboard & Stats -->
+      <section class="combat-dashboard">
+        <div class="combat-heading">
+          <div><span class="section-kicker">YOUR ADVENTURE SO FAR</span><h2>Battle camp</h2></div>
+          <button class="return-garden" data-screen="garden">Upgrade heroes ${icon('arrow', 17)}</button>
+        </div>
+        <div class="combat-stat-grid">
+          <div class="combat-stat"><span class="combat-stat-icon">⚔️</span><small>PARTY POWER</small><strong id="combat-power"></strong><p>Damage per second</p></div>
+          <div class="combat-stat"><span class="combat-stat-icon">🏆</span><small>DUNGEON WAVES</small><strong id="waves-cleared"></strong><p>One victory at a time</p></div>
+          <div class="combat-stat"><span class="combat-stat-icon">🍃</span><small>BATTLE LEAVES</small><strong id="battle-earned"></strong><p>Earned from victories</p></div>
+        </div>
+        <div class="combat-lower">
+          <div class="legion-card">
+            <div class="card-heading">
+              <div><h3>Heroes on the front line</h3><p>Every recruited hero joins the fight</p></div>
+              <span class="tiny-badge" id="legion-badge"></span>
+            </div>
+            <div id="legion-roster"></div>
+          </div>
+          <div class="battle-tip">
+            <span>🌼</span>
+            <div>
+              <strong>Wizardry tactics, idle progression.</strong>
+              <p>Configure Front and Back rows in the Tactics menu. Front row heroes absorb enemy assaults, allowing your back row to channel powerful spells and heals unhindered.</p>
+            </div>
+            <button data-screen="garden">Visit your garden ${icon('arrow', 16)}</button>
+          </div>
+        </div>
+      </section>
     </main>
     <main id="bag-screen" class="screen-view utility-screen" hidden><section class="utility-intro"><div><span class="eyebrow">✦ &nbsp; TREASURES FROM THE GLADE</span><h1>Accessories <em>& Bag.</em></h1><p>Win combat waves to discover accessories, then equip one to help your team.</p></div><span class="utility-hero-icon">🎒</span></section><div id="bag-content"></div></main>
     <main id="upgrades-screen" class="screen-view utility-screen" hidden><section class="utility-intro"><div><span class="eyebrow">✦ &nbsp; GROW STRONGER TOGETHER</span><h1>Garden <em>Upgrades.</em></h1><p>Spend Leaf Points on lasting boosts for every hero in your legion.</p></div><span class="utility-hero-icon">✨</span></section><div id="upgrades-content"></div></main>
@@ -181,6 +346,27 @@ app.innerHTML = `
     <footer>Made with a little sunshine & a lot of leaves <span>✿</span></footer>
     <nav class="mobile-dock" aria-label="Quick navigation"><button class="dock-link active" data-screen="home" aria-label="Home">🏡<span>Home</span></button><button class="dock-link" data-screen="garden" aria-label="Garden">🌿<span>Garden</span></button><button class="dock-link" data-screen="combat" aria-label="Combat">⚔️<span>Combat</span></button><button class="dock-link" data-screen="bag" aria-label="Bag">🎒<span>Bag</span></button><button class="dock-link" data-screen="upgrades" aria-label="Upgrades">✨<span>Upgrades</span></button></nav>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- Wizardry Tactics & Formation Configuration Modal -->
+    <div id="tactics-modal" class="tactics-modal-overlay" hidden>
+      <div class="tactics-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="tactics-modal-title">
+        <div class="tactics-modal-header">
+          <div>
+            <span class="section-kicker">WIZARDRY DRPG COMBAT SYSTEM</span>
+            <h2 id="tactics-modal-title">⚔️ Party Tactics & Formation</h2>
+          </div>
+          <button class="tactics-close-btn" data-close-tactics aria-label="Close tactics">✕</button>
+        </div>
+        <div class="tactics-modal-body" id="tactics-modal-content"></div>
+        <div class="tactics-modal-footer">
+          <button class="tactics-btn-reset" data-reset-tactics type="button">↺ Reset Recommended</button>
+          <div class="tactics-footer-actions">
+            <button class="tactics-btn-cancel" data-close-tactics type="button">Cancel</button>
+            <button class="tactics-btn-save" data-save-tactics type="button">💾 Apply Tactics</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>`;
 
 const grid = document.querySelector('#garden-grid');
@@ -308,10 +494,69 @@ function renderCombat() {
   const enemy = enemyForWave(battle.wave);
   const biome = biomeForWave(battle.wave);
   const owned = HEROES.filter(hero => state.heroes[hero.id]);
+  const dungeonDepth = floorForWave(battle.wave);
+
   const biomeEl = document.querySelector('#battle-biome');
   if (biomeEl) {
     biomeEl.innerHTML = `${biome.emoji} &nbsp; ${biome.name.toUpperCase()} <span class="biome-desc">${biome.desc}</span>`;
   }
+  const depthEl = document.querySelector('#drpg-depth-label');
+  if (depthEl) {
+    depthEl.textContent = dungeonDepth.fullLabel;
+  }
+
+  // Mode button & manual action toggle
+  const isAuto = (state.tactics?.mode || 'auto') === 'auto';
+  const modeBtn = document.querySelector('#btn-toggle-mode');
+  const modeText = document.querySelector('#drpg-mode-text');
+  const manualTurnBtn = document.querySelector('#btn-manual-turn');
+  if (modeBtn && modeText) {
+    modeBtn.className = `drpg-mode-toggle ${isAuto ? 'active-auto' : 'active-manual'}`;
+    modeText.textContent = isAuto ? 'AUTO BATTLE' : 'MANUAL STEP';
+  }
+  if (manualTurnBtn) {
+    manualTurnBtn.style.display = isAuto ? 'none' : 'inline-flex';
+  }
+
+  // Dual-Row Formation Roster
+  const frontContainer = document.querySelector('#drpg-front-row');
+  const backContainer = document.querySelector('#drpg-back-row');
+  if (frontContainer && backContainer) {
+    const formation = state.tactics?.formation || DEFAULT_TACTICS.formation;
+    const actions = state.tactics?.actions || DEFAULT_TACTICS.actions;
+    const attackOrder = state.tactics?.attackOrder || DEFAULT_TACTICS.attackOrder;
+
+    const frontHeroes = owned.filter(h => (formation[h.id] || 'front') === 'front');
+    const backHeroes = owned.filter(h => formation[h.id] === 'back');
+
+    const renderChip = (hero) => {
+      const skillId = actions[hero.id] || 'attack';
+      const skill = HERO_SKILLS[hero.id]?.find(s => s.id === skillId) || { name: 'Basic Strike', emoji: '⚔️' };
+      const orderIdx = attackOrder.filter(id => state.heroes[id]).indexOf(hero.id);
+      const orderBadge = orderIdx !== -1 ? `#${orderIdx + 1}` : '';
+      return `
+        <div class="formation-chip ${hero.color}" title="${hero.name} · Level ${state.heroes[hero.id]}">
+          <span class="formation-chip-avatar">${heroPortrait(hero)}</span>
+          <div class="formation-chip-info">
+            <div class="chip-name-row">
+              <strong>${hero.name}</strong>
+              ${orderBadge ? `<span class="chip-order">${orderBadge}</span>` : ''}
+            </div>
+            <span class="chip-skill">${skill.emoji} ${skill.name}</span>
+          </div>
+        </div>
+      `;
+    };
+
+    frontContainer.innerHTML = frontHeroes.length
+      ? frontHeroes.map(renderChip).join('')
+      : '<span class="empty-formation-note">No heroes in Front Row</span>';
+
+    backContainer.innerHTML = backHeroes.length
+      ? backHeroes.map(renderChip).join('')
+      : '<span class="empty-formation-note">No heroes in Back Row</span>';
+  }
+
   document.querySelector('#battle-figures').innerHTML = owned.map(hero => `<span class="battle-hero ${hero.color}" title="${hero.name}">${heroPortrait(hero)}</span>`).join('');
   document.querySelector('#squad-banner-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(getTroopCount())} troops ready`;
   document.querySelector('#squad-portraits').innerHTML = owned.map(hero => `<span title="${hero.name}">${heroPortrait(hero)}</span>`).join('');
@@ -320,17 +565,25 @@ function renderCombat() {
   document.querySelector('#enemy-figure').innerHTML = enemy.emoji;
   document.querySelector('#enemy-figure').className = `enemy-figure ${enemy.tint}`;
   document.querySelector('#enemy-name').textContent = enemy.name;
-  document.querySelector('#enemy-wave').textContent = battle.wave % 5 === 0 ? 'BOSS WAVE' : `Wave ${battle.wave} enemy`;
+  document.querySelector('#enemy-wave').textContent = battle.wave % 5 === 0 ? 'BOSS CHAMBER' : `Wave ${battle.wave} enemy`;
   document.querySelector('#legion-badge').textContent = `${owned.length + getTroopCount()} ACTIVE`;
-  document.querySelector('#legion-roster').innerHTML = owned.map(hero => `<div class="roster-row"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><div><strong>${hero.name}</strong><small>Level ${state.heroes[hero.id]} · ${fmtRate(heroPower(state, hero))} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unitPower(state, unit))} damage / sec</small></div><span class="roster-ready">● FIGHTING</span></div>`).join('');
+  document.querySelector('#legion-roster').innerHTML = owned.map(hero => {
+    const row = (state.tactics?.formation?.[hero.id] || 'front') === 'front' ? 'FRONT' : 'BACK';
+    return `<div class="roster-row"><span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span><div><strong>${hero.name}</strong><small>Level ${state.heroes[hero.id]} · ${row} ROW · ${fmtRate(heroPower(state, hero))} dmg/s</small></div><span class="roster-ready">● READY</span></div>`;
+  }).join('') + UNITS.filter(unit => state.legion[unit.id] > 0).map(unit => `<div class="roster-row"><span class="list-avatar unit-avatar">${unit.emoji}</span><div><strong>${unit.name} × ${fmt(state.legion[unit.id])}</strong><small>${fmtRate(unitPower(state, unit))} dmg/s</small></div><span class="roster-ready">● READY</span></div>`).join('');
   renderBattleNumbers();
   if (activeScreen === 'combat') visuals?.syncCombat();
 }
+
 function renderBattleNumbers() {
   const battle = state.battle;
   const maxEnemy = enemyMaxHp(battle.wave);
   const maxParty = getPartyMaxHp();
-  document.querySelector('#wave-label').textContent = battle.wave;
+  const dungeonDepth = floorForWave(battle.wave);
+  const depthEl = document.querySelector('#drpg-depth-label');
+  if (depthEl) depthEl.textContent = dungeonDepth.fullLabel;
+  const waveEl = document.querySelector('#wave-label');
+  if (waveEl) waveEl.textContent = battle.wave;
   document.querySelector('#party-hp-label').textContent = `${fmt(battle.partyHp)} / ${fmt(maxParty)}`;
   document.querySelector('#enemy-hp-label').textContent = `${fmt(battle.enemyHp)} / ${fmt(maxEnemy)}`;
   document.querySelector('#party-hp-fill').style.width = `${Math.max(0, Math.min(100, (battle.partyHp / maxParty) * 100))}%`;
@@ -341,7 +594,8 @@ function renderBattleNumbers() {
   document.querySelector('#battle-earned').textContent = fmt(battle.earned);
   const stalled = !!battle.stalled;
   document.querySelector('#battle-status').classList.toggle('stalled', stalled);
-  document.querySelector('#battle-status-text').textContent = stalled ? 'LEGION TOO WEAK · UPGRADE TO ADVANCE' : 'AUTO BATTLE ACTIVE';
+  const isAuto = (state.tactics?.mode || 'auto') === 'auto';
+  document.querySelector('#battle-status-text').textContent = stalled ? 'PARTY TOO WEAK · UPGRADE TO ADVANCE' : (isAuto ? 'AUTO BATTLE ACTIVE' : 'MANUAL STEP MODE');
 
   const ultBtn = document.querySelector('#ult-btn');
   const ultFill = document.querySelector('#ult-fill');
@@ -362,6 +616,160 @@ function renderBattleNumbers() {
       if (ultStatus) ultStatus.textContent = canUlt ? 'READY TO UNLEASH!' : `Charging (${Math.floor(energy)}%)`;
     }
   }
+}
+
+function addCombatLog(log) {
+  const feed = document.querySelector('#combat-log-feed');
+  if (!feed) return;
+  const line = document.createElement('div');
+  line.className = `drpg-log-line ${log.type || 'info'}`;
+  line.textContent = log.text;
+  feed.appendChild(line);
+  while (feed.children.length > 25) {
+    feed.removeChild(feed.firstChild);
+  }
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function executeCombatTurn(manualActions = null) {
+  const result = executeTurn(state, manualActions, Date.now());
+  if (!result) return;
+
+  result.logs.forEach(log => {
+    addCombatLog(log);
+  });
+
+  const hasHeal = result.logs.some(l => l.type === 'heal' || l.type === 'support');
+  const hasGuard = result.logs.some(l => l.type === 'guard');
+  const hasVictory = result.logs.some(l => l.type === 'victory');
+  const hasEnemyHit = result.logs.some(l => l.type === 'enemy');
+
+  if (hasVictory) {
+    playVictory();
+    if (activeScreen === 'upgrades') renderUpgrades();
+    renderCombat();
+  } else {
+    if (hasHeal) playHeal();
+    else if (hasGuard) playShieldGuard();
+    else playSpellCast();
+    renderBattleNumbers();
+  }
+
+  if (visuals) {
+    if (hasEnemyHit) visuals.enemyAttack?.();
+    else visuals.attack?.();
+  }
+}
+
+function openTacticsModal() {
+  modalTactics = JSON.parse(JSON.stringify(state.tactics || DEFAULT_TACTICS));
+  renderTacticsModal();
+  const modal = document.querySelector('#tactics-modal');
+  if (modal) modal.hidden = false;
+  playTurnSelect();
+}
+
+function closeTacticsModal() {
+  const modal = document.querySelector('#tactics-modal');
+  if (modal) modal.hidden = true;
+  modalTactics = null;
+}
+
+function renderTacticsModal() {
+  if (!modalTactics) return;
+  const container = document.querySelector('#tactics-modal-content');
+  if (!container) return;
+
+  const owned = HEROES.filter(h => state.heroes[h.id]);
+  const sortedOwned = [...owned].sort((a, b) => {
+    const idxA = modalTactics.attackOrder.indexOf(a.id);
+    const idxB = modalTactics.attackOrder.indexOf(b.id);
+    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+  });
+
+  container.innerHTML = `
+    <div class="tactics-mode-panel">
+      <span class="tactics-label">COMBAT EXECUTION MODE</span>
+      <div class="tactics-mode-options">
+        <label class="tactics-mode-card ${modalTactics.mode === 'auto' ? 'selected' : ''}">
+          <input type="radio" name="modal-mode" value="auto" ${modalTactics.mode === 'auto' ? 'checked' : ''} />
+          <span class="mode-icon">⚡</span>
+          <div>
+            <strong>Auto Battle (Preset Tactics)</strong>
+            <small>Turns execute automatically following party formation & skill presets</small>
+          </div>
+        </label>
+        <label class="tactics-mode-card ${modalTactics.mode === 'manual' ? 'selected' : ''}">
+          <input type="radio" name="modal-mode" value="manual" ${modalTactics.mode === 'manual' ? 'checked' : ''} />
+          <span class="mode-icon">🕹️</span>
+          <div>
+            <strong>Manual Step Mode</strong>
+            <small>Pause combat and manually trigger each turn with step button</small>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <div class="tactics-heroes-heading">
+      <div>
+        <h3>Party Formation & Skill Presets</h3>
+        <p>Front Row absorbs 75% enemy attacks. Back Row receives 30% reduced damage.</p>
+      </div>
+      <span class="tiny-badge">${sortedOwned.length} HEROES</span>
+    </div>
+
+    <div class="tactics-heroes-list">
+      ${sortedOwned.map((hero, index) => {
+        const row = modalTactics.formation[hero.id] || 'front';
+        const currentSkill = modalTactics.actions[hero.id] || HERO_SKILLS[hero.id][0].id;
+        const skills = HERO_SKILLS[hero.id] || [];
+
+        return `
+          <div class="tactics-hero-row" data-hero="${hero.id}">
+            <div class="tactics-hero-meta">
+              <span class="tactics-order-badge">#${index + 1}</span>
+              <span class="list-avatar ${hero.color}">${heroPortrait(hero)}</span>
+              <div>
+                <strong>${hero.name}</strong>
+                <small>LVL ${state.heroes[hero.id]}</small>
+              </div>
+            </div>
+
+            <div class="tactics-row-picker">
+              <span class="tactics-picker-label">FORMATION</span>
+              <div class="tactics-switch-btns">
+                <button type="button" class="btn-formation-row ${row === 'front' ? 'active vanguard' : ''}" data-set-row="${hero.id}" data-row="front">
+                  🛡️ Front
+                </button>
+                <button type="button" class="btn-formation-row ${row === 'back' ? 'active rearguard' : ''}" data-set-row="${hero.id}" data-row="back">
+                  🏹 Back
+                </button>
+              </div>
+            </div>
+
+            <div class="tactics-skill-picker">
+              <span class="tactics-picker-label">DEFAULT SKILL</span>
+              <select class="tactics-select-skill" data-select-skill="${hero.id}">
+                ${skills.map(s => `
+                  <option value="${s.id}" ${currentSkill === s.id ? 'selected' : ''}>
+                    ${s.emoji} ${s.name} - ${s.desc}
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="tactics-order-btns">
+              <span class="tactics-picker-label">PRIORITY</span>
+              <div class="order-btn-group">
+                <button type="button" class="btn-order-arrow" data-order-hero="${hero.id}" data-dir="up" ${index === 0 ? 'disabled' : ''} title="Move Up in Priority">▲</button>
+                <button type="button" class="btn-order-arrow" data-order-hero="${hero.id}" data-dir="down" ${index === sortedOwned.length - 1 ? 'disabled' : ''} title="Move Down in Priority">▼</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
 }
 function renderBag() {
   const earned = ACCESSORIES.filter(item => isAccessoryUnlocked(state, item)).length;
@@ -563,6 +971,93 @@ app.addEventListener('click', (event) => {
   const screen = event.target.closest('[data-screen]');
   if (screen) { event.preventDefault(); showScreen(screen.dataset.screen); return; }
 
+  // Tactics toggle: Auto vs Manual
+  const toggleBtn = event.target.closest('#btn-toggle-mode');
+  if (toggleBtn) {
+    state.tactics.mode = state.tactics.mode === 'auto' ? 'manual' : 'auto';
+    save();
+    renderCombat();
+    playTurnSelect();
+    toast(state.tactics.mode === 'auto' ? '⚡ Auto-Battle mode activated' : '🕹️ Manual Step Mode activated');
+    return;
+  }
+
+  // Open Tactics & Formation modal
+  if (event.target.closest('#btn-open-tactics')) {
+    openTacticsModal();
+    return;
+  }
+
+  // Close Tactics modal
+  if (event.target.closest('[data-close-tactics]')) {
+    closeTacticsModal();
+    return;
+  }
+
+  // Reset Tactics in modal
+  if (event.target.closest('[data-reset-tactics]')) {
+    modalTactics = JSON.parse(JSON.stringify(DEFAULT_TACTICS));
+    renderTacticsModal();
+    playTap();
+    toast('Tactics reset to recommended presets');
+    return;
+  }
+
+  // Save Tactics in modal
+  if (event.target.closest('[data-save-tactics]')) {
+    if (modalTactics) {
+      state.tactics = sanitizeTactics(modalTactics);
+      save();
+      closeTacticsModal();
+      renderCombat();
+      toast('⚔️ Tactics and formations applied!');
+    }
+    return;
+  }
+
+  // Set hero formation row in modal
+  const rowBtn = event.target.closest('[data-set-row]');
+  if (rowBtn && modalTactics) {
+    const heroId = rowBtn.dataset.setRow;
+    const row = rowBtn.dataset.row;
+    modalTactics.formation[heroId] = row;
+    renderTacticsModal();
+    playTurnSelect();
+    return;
+  }
+
+  // Move hero attack order in modal
+  const orderBtn = event.target.closest('[data-order-hero]');
+  if (orderBtn && modalTactics) {
+    const heroId = orderBtn.dataset.orderHero;
+    const dir = orderBtn.dataset.dir;
+    const idx = modalTactics.attackOrder.indexOf(heroId);
+    if (idx !== -1) {
+      const swapIdx = dir === 'up' ? idx - 1 : idx + 1;
+      if (swapIdx >= 0 && swapIdx < modalTactics.attackOrder.length) {
+        const tmp = modalTactics.attackOrder[idx];
+        modalTactics.attackOrder[idx] = modalTactics.attackOrder[swapIdx];
+        modalTactics.attackOrder[swapIdx] = tmp;
+        renderTacticsModal();
+        playTurnSelect();
+      }
+    }
+    return;
+  }
+
+  // Manual Turn button
+  if (event.target.closest('#btn-manual-turn')) {
+    executeCombatTurn();
+    return;
+  }
+
+  // Clear combat log
+  if (event.target.closest('#btn-clear-combat-log')) {
+    const feed = document.querySelector('#combat-log-feed');
+    if (feed) feed.innerHTML = '<div class="drpg-log-line info">Combat log cleared.</div>';
+    return;
+  }
+
   // Ultimate Skill
   if (event.target.closest('#ult-btn')) {
     if (canActivateUltimate(state)) {
@@ -755,16 +1250,25 @@ function tick() {
   state.leaves += gained;
   state.totalHarvested += gained;
   const waveBefore = state.battle.wave;
-  advanceCombat(state, dt);
-  renderNumbers();
-  if (state.battle.wave !== waveBefore) {
-    playVictory();
-    if (activeScreen === 'upgrades') renderUpgrades();
-  }
+
   if (activeScreen === 'combat') {
+    if ((state.tactics?.mode || 'auto') === 'auto') {
+      if (now - lastAutoTurn >= 1200) {
+        lastAutoTurn = now;
+        executeCombatTurn();
+      }
+    }
+    renderNumbers();
     renderBattleNumbers();
-    if (state.battle.wave !== waveBefore) renderCombat();
-  } else if (state.battle.wave !== waveBefore && activeScreen === 'bag') {
+  } else {
+    advanceCombat(state, dt);
+    renderNumbers();
+    if (state.battle.wave !== waveBefore) {
+      playVictory();
+      if (activeScreen === 'upgrades') renderUpgrades();
+    }
+  }
+  if (state.battle.wave !== waveBefore && activeScreen === 'bag') {
     renderBag();
   }
   const balance = document.querySelector('#upgrade-leaves');
@@ -846,9 +1350,27 @@ app.addEventListener('input', (event) => {
   applySettings();
 });
 app.addEventListener('change', (event) => {
-  if (!event.target.closest('[data-volume]')) return;
-  save();
-  playTap();
+  if (event.target.closest('[data-volume]')) {
+    save();
+    playTap();
+    return;
+  }
+
+  const skillSelect = event.target.closest('[data-select-skill]');
+  if (skillSelect && modalTactics) {
+    const heroId = skillSelect.dataset.selectSkill;
+    modalTactics.actions[heroId] = skillSelect.value;
+    playTurnSelect();
+    return;
+  }
+
+  const modeRadio = event.target.closest('input[name="modal-mode"]');
+  if (modeRadio && modalTactics) {
+    modalTactics.mode = modeRadio.value;
+    renderTacticsModal();
+    playTurnSelect();
+    return;
+  }
 });
 // Another tab took ownership of the save: stop ticking and saving here so it can't overwrite that tab's progress.
 window.addEventListener('storage', (event) => {

@@ -131,3 +131,645 @@
 .tab-paused-banner strong{font:600 24px Fredoka,sans-serif}
 .tab-paused-banner span{font-size:14px;color:#5b6b58}
 .tab-paused-banner button{margin-top:8px;border:0;border-radius:14px;padding:12px 20px;background:#7ca95e;color:#fff;font-weight:700;cursor:pointer}
+
+/* ==========================================================================
+   WIZARDRY™-LIKE DUNGEON CRAWLER DRPG COMBAT SYSTEM
+   ========================================================================== */
+
+/* Dungeon Depth & Badges */
+.combat-intro-badges { display: flex; align-items: center; gap: 10px; }
+.drpg-depth-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #1b2e22, #142118);
+  border: 1px solid #3d6347;
+  color: #fef08a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+  letter-spacing: 1.2px;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.drpg-depth-badge .depth-icon { font-size: 16px; }
+.drpg-depth-badge strong { font-size: 14px; color: #fde047; }
+
+/* Tactics Action Bar & Mode Switcher */
+.drpg-controls-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.drpg-controls-left, .drpg-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.drpg-mode-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 800;
+  transition: all 0.2s ease;
+  border: 1px solid #c9d8bf;
+  background: #fff;
+  cursor: pointer;
+}
+.drpg-mode-toggle.active-auto {
+  background: #ecfdf5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+.drpg-mode-toggle.active-manual {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+.drpg-mode-toggle small {
+  color: #6b7280;
+  font-weight: normal;
+  font-size: 9px;
+}
+.mode-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25);
+  animation: status-pulse 2s infinite ease-in-out;
+}
+.active-manual .mode-pulse-dot {
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+.drpg-tactics-button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #315c39;
+  border: 1px solid #234c31;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 3px 0 #1b3823;
+  transition: all 0.18s ease;
+  cursor: pointer;
+}
+.drpg-tactics-button:hover {
+  background: #3c7247;
+  transform: translateY(-2px);
+}
+.drpg-manual-turn-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  border: 1px solid #b45309;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 0 #92400e, 0 6px 16px rgba(217, 119, 6, 0.3);
+  transition: all 0.18s ease;
+  cursor: pointer;
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+.drpg-manual-turn-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 #92400e, 0 8px 20px rgba(217, 119, 6, 0.4);
+}
+.drpg-manual-turn-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #92400e;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 4px 0 #92400e, 0 0 0 0 rgba(245, 158, 11, 0.4); }
+  50% { box-shadow: 0 4px 0 #92400e, 0 0 0 6px rgba(245, 158, 11, 0); }
+}
+
+/* 1st-Person Perspective Dungeon Corridor Viewport */
+.drpg-corridor-frame {
+  position: relative;
+  border: 2px solid #3c5440;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), inset 0 0 80px rgba(20, 36, 24, 0.16);
+}
+.corridor-torch {
+  position: absolute;
+  top: 60px;
+  z-index: 2;
+  font-size: 24px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.8));
+  animation: torch-flicker 1.8s infinite alternate ease-in-out;
+}
+.torch-left { left: 24px; }
+.torch-right { right: 24px; }
+@keyframes torch-flicker {
+  0% { transform: scale(1) translateY(0); filter: drop-shadow(0 0 10px rgba(245, 158, 11, 0.7)); }
+  50% { transform: scale(1.08) translateY(-2px); filter: drop-shadow(0 0 16px rgba(239, 68, 68, 0.9)); }
+  100% { transform: scale(0.96) translateY(1px); filter: drop-shadow(0 0 12px rgba(245, 158, 11, 0.8)); }
+}
+
+/* Dual-Row Formation Tactical HUD */
+.drpg-formation-hud {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 18px;
+}
+.formation-hud-column {
+  background: #fffefa;
+  border: 1px solid #dce6d5;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 3px 0 #e4ece0;
+}
+.vanguard-col { border-left: 5px solid #22c55e; }
+.rearguard-col { border-left: 5px solid #3b82f6; }
+.formation-hud-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 12px;
+}
+.formation-badge {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+}
+.formation-badge.vanguard { color: #15803d; }
+.formation-badge.rearguard { color: #1d4ed8; }
+.formation-hud-header small {
+  font-size: 10px;
+  color: #718096;
+}
+.formation-member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.formation-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f7faf5;
+  border: 1px solid #d8e5d2;
+  border-radius: 12px;
+  padding: 6px 10px;
+  min-width: 140px;
+  transition: transform 0.2s ease;
+}
+.formation-chip:hover {
+  transform: translateY(-2px);
+  border-color: #86efac;
+}
+.formation-chip-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: #e2f0d9;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  flex: none;
+}
+.formation-chip-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.formation-chip-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.chip-name-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.chip-name-row strong {
+  font: 600 12px Fredoka, sans-serif;
+  color: #2d4e33;
+}
+.chip-order {
+  font-size: 8px;
+  font-weight: 800;
+  background: #315c39;
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 5px;
+}
+.chip-skill {
+  font-size: 9px;
+  color: #4b6b50;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.empty-formation-note {
+  font-size: 11px;
+  color: #a0aec0;
+  font-style: italic;
+  padding: 8px 0;
+}
+
+/* Retro Dungeon Terminal Battle Log */
+.drpg-log-panel {
+  margin-top: 18px;
+  background: #0f1712;
+  border: 1px solid #233b2a;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.drpg-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #18271e;
+  padding: 10px 16px;
+  border-bottom: 1px solid #22372a;
+}
+.log-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #a7f3d0;
+  font-size: 11px;
+  letter-spacing: 1px;
+  font-weight: 800;
+}
+.terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.drpg-log-clear-btn {
+  background: transparent;
+  border: 1px solid #334d3b;
+  color: #8ba895;
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.drpg-log-clear-btn:hover {
+  background: #253d2d;
+  color: #e2e8f0;
+}
+.drpg-log-feed {
+  height: 140px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: 'Courier New', Courier, monospace, sans-serif;
+  font-size: 11px;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: #243c2d #0f1712;
+}
+.drpg-log-line {
+  margin-bottom: 4px;
+  animation: line-fade-in 0.25s ease-out;
+}
+@keyframes line-fade-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.drpg-log-line.hero { color: #86efac; }
+.drpg-log-line.enemy { color: #fca5a5; }
+.drpg-log-line.heal, .drpg-log-line.support { color: #67e8f9; }
+.drpg-log-line.guard { color: #fde047; }
+.drpg-log-line.victory { color: #fbbf24; font-weight: bold; }
+.drpg-log-line.defeat { color: #ef4444; font-weight: bold; }
+.drpg-log-line.info { color: #94a3b8; }
+.drpg-log-line.troop { color: #a3e635; }
+
+/* Wizardry Tactics Configuration Modal */
+.tactics-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 20, 14, 0.75);
+  backdrop-filter: blur(4px);
+  padding: 20px;
+  animation: modal-backdrop-in 0.2s ease;
+}
+.tactics-modal-overlay[hidden] {
+  display: none;
+}
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.tactics-modal-dialog {
+  background: #fffefa;
+  border: 1px solid #d5e5cf;
+  border-radius: 22px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  animation: dialog-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes dialog-pop-in {
+  from { transform: scale(0.92) translateY(12px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.tactics-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid #e2ebd9;
+  background: #f7faf3;
+}
+.tactics-modal-header h2 {
+  font: 600 22px Fredoka, sans-serif;
+  color: #29472e;
+  margin-top: 4px;
+}
+.tactics-close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid #d0dfca;
+  background: #fff;
+  font-size: 14px;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.tactics-close-btn:hover {
+  background: #fee2e2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+.tactics-modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.tactics-mode-panel {
+  background: #f4f8ee;
+  border: 1px solid #dce7d4;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.tactics-label {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  color: #63855a;
+  display: block;
+  margin-bottom: 10px;
+}
+.tactics-mode-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.tactics-mode-card {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #d0deca;
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.tactics-mode-card.selected {
+  border-color: #10b981;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+.tactics-mode-card input {
+  margin-top: 3px;
+}
+.tactics-mode-card .mode-icon {
+  font-size: 20px;
+}
+.tactics-mode-card strong {
+  display: block;
+  font: 600 13px Fredoka, sans-serif;
+  color: #204128;
+}
+.tactics-mode-card small {
+  display: block;
+  font-size: 10px;
+  color: #64748b;
+  margin-top: 2px;
+  line-height: 1.3;
+}
+.tactics-heroes-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+}
+.tactics-heroes-heading h3 {
+  font: 600 17px Fredoka, sans-serif;
+  color: #29472e;
+}
+.tactics-heroes-heading p {
+  font-size: 11px;
+  color: #6b7280;
+  margin-top: 3px;
+}
+.tactics-heroes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tactics-hero-row {
+  display: grid;
+  grid-template-columns: 1.3fr 1.1fr 1.6fr 0.7fr;
+  align-items: center;
+  gap: 10px;
+  background: #fbfdf9;
+  border: 1px solid #e1ebdc;
+  border-radius: 14px;
+  padding: 10px 14px;
+  transition: background 0.18s ease;
+}
+.tactics-hero-row:hover {
+  background: #f4f9f0;
+}
+.tactics-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tactics-order-badge {
+  font-size: 10px;
+  font-weight: 800;
+  color: #4b6b4e;
+  background: #e2edd9;
+  border-radius: 8px;
+  padding: 4px 7px;
+}
+.tactics-hero-meta strong {
+  display: block;
+  font: 600 13px Fredoka, sans-serif;
+  color: #2d4e33;
+}
+.tactics-hero-meta small {
+  font-size: 9px;
+  color: #8ca088;
+}
+.tactics-picker-label {
+  display: block;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #7b9477;
+  margin-bottom: 4px;
+}
+.tactics-switch-btns {
+  display: flex;
+  gap: 4px;
+}
+.btn-formation-row {
+  flex: 1;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid #ccdcc6;
+  background: #f1f5ee;
+  color: #5b7357;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-formation-row.active.vanguard {
+  background: #dcfce7;
+  border-color: #86efac;
+  color: #15803d;
+}
+.btn-formation-row.active.rearguard {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+.tactics-select-skill {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #ccdcc6;
+  background: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  color: #29472e;
+}
+.order-btn-group {
+  display: flex;
+  gap: 4px;
+}
+.btn-order-arrow {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1px solid #ccdcc6;
+  background: #fff;
+  color: #4b6b4e;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-order-arrow:hover:not(:disabled) {
+  background: #315c39;
+  color: #fff;
+}
+.btn-order-arrow:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.tactics-modal-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 24px;
+  border-top: 1px solid #e2ebd9;
+  background: #f7faf3;
+}
+.tactics-footer-actions {
+  display: flex;
+  gap: 10px;
+}
+.tactics-btn-reset {
+  background: transparent;
+  border: 1px solid #ccdcc6;
+  color: #64748b;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tactics-btn-reset:hover {
+  background: #eef4e8;
+  color: #334155;
+}
+.tactics-btn-cancel {
+  background: #fff;
+  border: 1px solid #ccdcc6;
+  color: #475569;
+  border-radius: 10px;
+  padding: 8px 16px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tactics-btn-save {
+  background: #315c39;
+  border: 1px solid #234c31;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 20px;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 3px 0 #1b3823;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.tactics-btn-save:hover {
+  background: #3d7046;
+  transform: translateY(-1px);
+}
+@media (max-width: 650px) {
+  .drpg-formation-hud { grid-template-columns: 1fr; }
+  .tactics-mode-options { grid-template-columns: 1fr; }
+  .tactics-hero-row { grid-template-columns: 1fr; gap: 8px; }
+  .tactics-order-btns { display: flex; align-items: center; justify-content: space-between; }
+  .order-btn-group { margin-left: auto; }
+}

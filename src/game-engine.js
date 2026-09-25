@@ -78,6 +78,67 @@ export const ENEMIES = [
   { name: 'Shadow Stump', emoji: '🪵', type: 'Woodland boss', tint: 'boss' },
 ];
 
+export const DEFAULT_TACTICS = {
+  mode: 'auto', // 'auto' | 'manual'
+  formation: {
+    sprout: 'front',
+    rose: 'back',
+    oak: 'front',
+    daisy: 'back',
+    moss: 'front',
+    sunflower: 'back',
+  },
+  attackOrder: ['sprout', 'rose', 'oak', 'daisy', 'moss', 'sunflower'],
+  actions: {
+    sprout: 'slash',
+    rose: 'thorn_volley',
+    oak: 'slam',
+    daisy: 'heal',
+    moss: 'quake',
+    sunflower: 'solar_beam',
+  },
+};
+
+export const HERO_SKILLS = {
+  sprout: [
+    { id: 'slash', name: 'Leaf Blade', icon: '🗡️', type: 'attack', multiplier: 1.4, desc: 'Sharp melee slash dealing 140% physical damage.' },
+    { id: 'guard', name: 'Sprout Shield', icon: '🛡️', type: 'guard', reduction: 0.35, desc: 'Raises shield, absorbing 35% damage to front row this turn.' },
+  ],
+  rose: [
+    { id: 'thorn_volley', name: 'Thorn Volley', icon: '🌹', type: 'attack', multiplier: 1.8, desc: 'Fires piercing thorn missiles dealing 180% magic damage.' },
+    { id: 'curse', name: 'Briar Curse', icon: '🕸️', type: 'dot', multiplier: 0.75, desc: 'Ensnare enemy with poisonous briars dealing DoT damage.' },
+  ],
+  oak: [
+    { id: 'slam', name: 'Branch Slam', icon: '🪵', type: 'attack', multiplier: 1.6, desc: 'Heavy crushing strike dealing 160% physical damage.' },
+    { id: 'bastion', name: 'Iron Bark', icon: '🛡️', type: 'taunt', reduction: 0.50, desc: 'Taunts enemy and absorbs 50% damage to protect allies.' },
+  ],
+  daisy: [
+    { id: 'dance', name: 'Petal Dance', icon: '🌸', type: 'attack', multiplier: 1.5, desc: 'Graceful spinning strikes dealing 150% damage.' },
+    { id: 'heal', name: 'Healing Pollen', icon: '💚', type: 'heal', percent: 0.20, desc: 'Restores 20% max HP to the party.' },
+  ],
+  moss: [
+    { id: 'quake', name: 'Earth Shatter', icon: '⛰️', type: 'attack', multiplier: 1.7, desc: 'Slams ground with seismic shock dealing 170% damage.' },
+    { id: 'stone_skin', name: 'Stone Aegis', icon: '🛡️', type: 'buff', defense: 0.30, desc: 'Hardens bark and stone to shield all heroes by 30%.' },
+  ],
+  sunflower: [
+    { id: 'solar_beam', name: 'Solar Ray', icon: '☀️', type: 'attack', multiplier: 2.0, desc: 'Channels brilliant sunlight for 200% piercing damage.' },
+    { id: 'prayer', name: 'Morning Glow', icon: '✨', type: 'support', healPercent: 0.12, energyGain: 12, desc: 'Heals all allies by 12% and charges +12% Ult energy.' },
+  ],
+};
+
+export function floorForWave(wave = 1) {
+  const safeWave = Math.max(1, Math.min(MAX_WAVE, Math.floor(Number(wave)) || 1));
+  const floor = Math.floor((safeWave - 1) / 5) + 1;
+  const room = ((safeWave - 1) % 5) + 1;
+  const isBossRoom = room === 5;
+  return {
+    floor,
+    room,
+    isBossRoom,
+    label: `DEPTH B${floor}F · ROOM ${room}${isBossRoom ? ' (BOSS CHAMBER)' : ''}`,
+  };
+}
+
 export const DEFAULT_STATE = {
   leaves: 0,
   totalHarvested: 0,
@@ -92,6 +153,12 @@ export const DEFAULT_STATE = {
   // Wins across every Bloom Anew cycle; accessories unlock from this so prestige keeps them.
   lifetimeWins: 0,
   equipped: null,
+  tactics: {
+    mode: 'auto',
+    formation: { ...DEFAULT_TACTICS.formation },
+    attackOrder: [...DEFAULT_TACTICS.attackOrder],
+    actions: { ...DEFAULT_TACTICS.actions },
+  },
   settings: { motion: true, floatingText: true, sound: true, volume: 70 },
   lastSaved: Date.now(),
 };
@@ -349,6 +416,226 @@ export function advanceCombat(state, seconds, now = Date.now()) {
   }
 }
 
+const fmtNumber = (n) => !Number.isFinite(n) || n < 0 ? '0' : n >= 1e9 ? `${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e4 ? `${(n / 1e3).toFixed(1)}K` : Math.floor(n).toLocaleString();
+
+export function sanitizeTactics(raw) {
+  if (!raw || typeof raw !== 'object') {
+    return {
+      mode: 'auto',
+      formation: { ...DEFAULT_TACTICS.formation },
+      attackOrder: [...DEFAULT_TACTICS.attackOrder],
+      actions: { ...DEFAULT_TACTICS.actions },
+    };
+  }
+
+  const mode = raw.mode === 'manual' ? 'manual' : 'auto';
+
+  const formation = {};
+  HEROES.forEach((h) => {
+    formation[h.id] = raw.formation?.[h.id] === 'front' || raw.formation?.[h.id] === 'back'
+      ? raw.formation[h.id]
+      : (DEFAULT_TACTICS.formation[h.id] || 'front');
+  });
+
+  const validHeroIds = HEROES.map((h) => h.id);
+  const rawOrder = Array.isArray(raw.attackOrder)
+    ? raw.attackOrder.filter((id) => validHeroIds.includes(id))
+    : [];
+  const missingHeroes = validHeroIds.filter((id) => !rawOrder.includes(id));
+  const attackOrder = [...rawOrder, ...missingHeroes];
+
+  const actions = {};
+  HEROES.forEach((h) => {
+    const available = HERO_SKILLS[h.id]?.map((s) => s.id) || [];
+    actions[h.id] = available.includes(raw.actions?.[h.id])
+      ? raw.actions[h.id]
+      : (available[0] || 'attack');
+  });
+
+  return { mode, formation, attackOrder, actions };
+}
+
+export function executeTurn(state, manualActions = null, now = Date.now()) {
+  if (!state?.battle) return null;
+  const battle = state.battle;
+  const tactics = state.tactics || DEFAULT_TACTICS;
+  const logs = [];
+  const maxParty = partyMaxHp(state);
+  const wave = battle.wave || 1;
+  const enemy = enemyForWave(wave);
+  const isUltActive = (battle.ultActiveUntil || 0) > now;
+  const ultMult = isUltActive ? 2 : 1;
+  const broochMult = state?.equipped === 'rose_brooch' ? 1.15 : 1;
+  const powerBonus = 1 + (state?.boosts?.power || 0) * 0.20 + artifactValue(state, 'sunlight_crystal');
+
+  let guardReduction = 0;
+  let totalDamageDealt = 0;
+
+  // 1. Collect active heroes ordered by attackOrder
+  const activeHeroes = HEROES.filter((h) => state.heroes?.[h.id]);
+  const orderedHeroes = [...activeHeroes].sort((a, b) => {
+    const idxA = tactics.attackOrder.indexOf(a.id);
+    const idxB = tactics.attackOrder.indexOf(b.id);
+    return (idxA === -1 ? 99 : idxA) - (idxB === -1 ? 99 : idxB);
+  });
+
+  // 2. Each hero takes their action
+  for (const hero of orderedHeroes) {
+    if (battle.enemyHp <= 0) break;
+
+    const actionId = manualActions?.[hero.id] || tactics.actions?.[hero.id] || HERO_SKILLS[hero.id]?.[0]?.id;
+    const skills = HERO_SKILLS[hero.id] || [];
+    const skill = skills.find((s) => s.id === actionId) || skills[0];
+    const level = state.heroes[hero.id] || 1;
+    const basePower = hero.baseLps * level * 3;
+
+    if (skill.type === 'attack') {
+      const isCrit = Math.random() < 0.15;
+      const dmg = Math.max(1, Math.round(basePower * powerBonus * broochMult * ultMult * (skill.multiplier || 1.4) * (isCrit ? 1.8 : 1)));
+      battle.enemyHp = Math.max(0, battle.enemyHp - dmg);
+      totalDamageDealt += dmg;
+      logs.push({
+        type: 'hero',
+        heroId: hero.id,
+        isCrit,
+        damage: dmg,
+        text: `${hero.emoji} ${hero.name} uses [${skill.name}] for ${fmtNumber(dmg)} damage!${isCrit ? ' 💥 CRIT!' : ''}`,
+      });
+    } else if (skill.type === 'heal') {
+      const healAmount = Math.max(1, Math.round(maxParty * (skill.percent || 0.20)));
+      battle.partyHp = Math.min(maxParty, battle.partyHp + healAmount);
+      logs.push({
+        type: 'heal',
+        heroId: hero.id,
+        healAmount,
+        text: `💚 ${hero.name} casts [${skill.name}], restoring +${fmtNumber(healAmount)} HP to the party!`,
+      });
+    } else if (skill.type === 'guard' || skill.type === 'taunt' || skill.type === 'buff') {
+      guardReduction = Math.max(guardReduction, skill.reduction || skill.defense || 0.35);
+      logs.push({
+        type: 'guard',
+        heroId: hero.id,
+        text: `🛡️ ${hero.name} activates [${skill.name}], raising party defense!`,
+      });
+    } else if (skill.type === 'support') {
+      const healAmount = Math.max(1, Math.round(maxParty * (skill.healPercent || 0.12)));
+      battle.partyHp = Math.min(maxParty, battle.partyHp + healAmount);
+      const eGain = skill.energyGain || 12;
+      battle.energy = Math.min(100, (battle.energy || 0) + eGain);
+      logs.push({
+        type: 'support',
+        heroId: hero.id,
+        text: `☀️ ${hero.name} channels [${skill.name}], healing +${fmtNumber(healAmount)} HP and charging +${eGain}% Ult energy!`,
+      });
+    } else if (skill.type === 'dot') {
+      const dmg = Math.max(1, Math.round(basePower * powerBonus * broochMult * ultMult * (skill.multiplier || 0.75)));
+      battle.enemyHp = Math.max(0, battle.enemyHp - dmg);
+      totalDamageDealt += dmg;
+      logs.push({
+        type: 'hero',
+        heroId: hero.id,
+        damage: dmg,
+        text: `🌿 ${hero.name} ensnares with [${skill.name}] dealing ${fmtNumber(dmg)} poison damage!`,
+      });
+    }
+  }
+
+  // Troops attack
+  const troopPower = troopCount(state) > 0 ? UNITS.reduce((sum, u) => sum + (state.legion?.[u.id] || 0) * u.power * 2, 0) : 0;
+  if (troopPower > 0 && battle.enemyHp > 0) {
+    const tDmg = Math.max(1, Math.round(troopPower * powerBonus * broochMult * ultMult));
+    battle.enemyHp = Math.max(0, battle.enemyHp - tDmg);
+    totalDamageDealt += tDmg;
+    logs.push({
+      type: 'troop',
+      damage: tDmg,
+      text: `🛡️ Garden Legion strikes for ${fmtNumber(tDmg)} damage!`,
+    });
+  }
+
+  // Energy charge per turn (+3%)
+  const energyRate = 3 * (1 + artifactValue(state, 'golden_can'));
+  battle.energy = Math.min(100, Math.max(0, (battle.energy || 0) + energyRate));
+
+  // Check if enemy defeated
+  if (battle.enemyHp <= 0) {
+    const reward = waveReward(battle.wave, state.equipped, state);
+    state.leaves = Math.max(0, (state.leaves || 0) + reward);
+    state.totalHarvested = Math.max(0, (state.totalHarvested || 0) + reward);
+    battle.earned = Math.max(0, (battle.earned || 0) + reward);
+    battle.wins = (battle.wins || 0) + 1;
+    state.lifetimeWins = (state.lifetimeWins || 0) + 1;
+    battle.wave = Math.min(MAX_WAVE, (battle.wave || 1) + 1);
+    battle.enemyHp = enemyMaxHp(battle.wave);
+    battle.partyHp = Math.min(maxParty, battle.partyHp + Math.round(maxParty * 0.25));
+    battle.energy = Math.min(100, (battle.energy || 0) + 5);
+
+    logs.push({
+      type: 'victory',
+      reward,
+      text: `🏆 ${enemy.name} defeated! Found 🍃 +${fmtNumber(reward)} leaves. Advancing to Wave ${battle.wave}!`,
+    });
+
+    return {
+      success: true,
+      enemyDefeated: true,
+      partyDefeated: false,
+      logs,
+      damageDealt: totalDamageDealt,
+      damageTaken: 0,
+    };
+  }
+
+  // 3. Enemy counter-attack
+  const baseEnemyDmg = enemyDamage(wave);
+  let finalIncoming = baseEnemyDmg;
+
+  // Front row mitigation
+  const frontHeroes = orderedHeroes.filter((h) => tactics.formation[h.id] === 'front');
+  const backHeroes = orderedHeroes.filter((h) => tactics.formation[h.id] === 'back');
+
+  let targetedRow = 'party';
+  if (frontHeroes.length > 0) {
+    targetedRow = 'front';
+    if (guardReduction > 0) {
+      finalIncoming = finalIncoming * (1 - guardReduction);
+    }
+  } else if (backHeroes.length > 0) {
+    targetedRow = 'back';
+  }
+
+  const roundedIncoming = Math.max(1, Math.round(finalIncoming));
+  battle.partyHp = Math.max(0, battle.partyHp - roundedIncoming);
+
+  logs.push({
+    type: 'enemy',
+    targetedRow,
+    damage: roundedIncoming,
+    text: `⚠️ ${enemy.emoji} ${enemy.name} retaliates against the ${targetedRow} row for ${fmtNumber(roundedIncoming)} damage!${guardReduction > 0 ? ' (Guard active)' : ''}`,
+  });
+
+  // Check if party defeated
+  let partyDefeated = false;
+  if (battle.partyHp <= 0) {
+    partyDefeated = true;
+    battle.partyHp = maxParty;
+    battle.enemyHp = enemyMaxHp(battle.wave);
+    logs.push({
+      type: 'defeat',
+      text: `💀 The expedition fell! Restoring party vitality to full at the campsite...`,
+    });
+  }
+
+  return {
+    success: true,
+    enemyDefeated: false,
+    partyDefeated,
+    logs,
+    damageDealt: totalDamageDealt,
+    damageTaken: roundedIncoming,
+  };
+}
+
 export function sanitizeSave(raw) {
   if (!raw || typeof raw !== 'object') {
     return {
@@ -357,6 +644,7 @@ export function sanitizeSave(raw) {
       legion: { ...DEFAULT_STATE.legion },
       boosts: { ...DEFAULT_STATE.boosts },
       artifacts: { ...DEFAULT_STATE.artifacts },
+      tactics: sanitizeTactics(null),
       settings: { ...DEFAULT_STATE.settings },
       battle: { ...DEFAULT_STATE.battle },
       lastSaved: Date.now(),
@@ -426,6 +714,7 @@ export function sanitizeSave(raw) {
     bloomCount: Number.isFinite(Number(raw.bloomCount)) ? Math.max(0, Math.floor(Number(raw.bloomCount))) : 0,
     lifetimeWins: totalWins,
     equipped,
+    tactics: sanitizeTactics(raw.tactics),
     settings: {
       motion: raw.settings?.motion !== false,
       floatingText: raw.settings?.floatingText !== false,
