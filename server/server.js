@@ -1,15 +1,11 @@
-// Idle Garden Hero trong Chat: phục vụ bản build tĩnh và giữ bản lưu theo tài khoản Chat.
-// Reverse proxy (Caddy `handle_path /garden/*`) cắt tiền tố trước khi vào đây, nên server
-// thấy /, /assets/..., /api/save; phía client mọi URL đều tương đối nên chạy ở đâu cũng được.
+// Idle Garden Hero: standalone static server with hardened security headers.
 import http from 'node:http';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createChatIdentity } from './chat-identity.js';
-import { openStore } from './store.js';
 
-const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
-const MAX_SAVE_BYTES = 512 * 1024;
+const DEFAULT_DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
+
 const TYPES = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -19,92 +15,118 @@ const TYPES = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.webmanifest': 'application/manifest+json',
+  '.ico': 'image/x-icon',
 };
-// Đúng những gì game dùng: script/ảnh của chính nó, font Google, và Phaser vẽ canvas
-// (ảnh tạo từ blob:/data:). Không có 'unsafe-inline' cho script.
+
+// Strict Content Security Policy:
+// - Disallows inline scripts (anti-XSS).
+// - Disallows embedding in any iframe (frame-ancestors 'none' + X-Frame-Options: DENY).
+// - Whitelists only essential fonts (Google Fonts) and asset data/blob URIs needed by Phaser.
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  'font-src https://fonts.gstatic.com',
+  "font-src https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "connect-src 'self'",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
-  "frame-ancestors 'self'",
+  "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');
 
 const sendJson = (res, status, body) => {
-  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  res.writeHead(status, {
+    'content-type': 'application/json',
+    'cache-control': 'no-store',
+  });
   res.end(JSON.stringify(body));
 };
 
-async function readBody(req, limit) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > limit) throw Object.assign(new Error('too large'), { status: 413 });
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks).toString('utf8');
+function applySecurityHeaders(res) {
+  res.setHeader('Content-Security-Policy', CSP);
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
 }
 
-async function serveStatic(req, res) {
-  let file = decodeURIComponent(new URL(req.url, 'http://x').pathname);
-  if (file.endsWith('/')) file += 'index.html';
-  const full = path.join(DIST, file);
-  if (!full.startsWith(DIST + path.sep)) return sendJson(res, 403, { error: 'forbidden' });
+async function serveStatic(req, res, distDir) {
+  let decodedPath;
+  try {
+    const rawPath = new URL(req.url, 'http://127.0.0.1').pathname;
+    decodedPath = decodeURIComponent(rawPath);
+  } catch {
+    return sendJson(res, 400, { error: 'bad_request' });
+  }
+
+  // Reject poison null bytes
+  if (decodedPath.includes('\0')) {
+    return sendJson(res, 400, { error: 'bad_request' });
+  }
+
+  if (decodedPath.endsWith('/')) {
+    decodedPath += 'index.html';
+  }
+
+  // Normalize and resolve strictly within distDir
+  const normalized = path.normalize(decodedPath).replace(/^(\.\.[\/\\])+/, '');
+  const full = path.resolve(distDir, `.${path.sep}${normalized}`);
+
+  const normalizedDist = path.resolve(distDir);
+  if (!full.startsWith(normalizedDist + path.sep) && full !== path.join(normalizedDist, 'index.html')) {
+    return sendJson(res, 403, { error: 'forbidden' });
+  }
+
+  // Disallow hidden files
+  const parts = normalized.split(/[/\\]/);
+  if (parts.some((p) => p.startsWith('.') && p !== '.' && p !== '..')) {
+    return sendJson(res, 404, { error: 'not_found' });
+  }
+
   try {
     const info = await stat(full);
     if (!info.isFile()) throw new Error('not a file');
-    const hashed = file.startsWith('/assets/index-') || file.startsWith('/assets/visuals-');
+
+    const ext = path.extname(full).toLowerCase();
+    const isHashed = decodedPath.startsWith('/assets/') && /-[a-zA-Z0-9_-]{8,}\./.test(decodedPath);
+
     res.writeHead(200, {
-      'content-type': TYPES[path.extname(full)] || 'application/octet-stream',
-      // Tên file có mã băm thì cache lâu được; còn lại luôn hỏi lại để bản mới tới ngay.
-      'cache-control': hashed ? 'public, max-age=31536000, immutable' : 'no-cache',
+      'content-type': TYPES[ext] || 'application/octet-stream',
+      'cache-control': isHashed ? 'public, max-age=31536000, immutable' : 'no-cache',
     });
+
+    if (req.method === 'HEAD') {
+      res.end();
+      return;
+    }
+
     res.end(await readFile(full));
   } catch {
     sendJson(res, 404, { error: 'not_found' });
   }
 }
 
-export function createServer({ store, chatIdentity }) {
+export function createServer({ distDir = DEFAULT_DIST } = {}) {
   return http.createServer(async (req, res) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'same-origin');
-    res.setHeader('Content-Security-Policy', CSP);
+    applySecurityHeaders(res);
+
     try {
-      const url = new URL(req.url, 'http://x');
+      const url = new URL(req.url, 'http://127.0.0.1');
+
       if (url.pathname === '/healthz') {
-        store.ping();
         return sendJson(res, 200, { ok: true });
       }
-      if (url.pathname === '/api/save') {
-        const user = chatIdentity ? await chatIdentity.resolve(req.headers.cookie) : null;
-        if (!user) return sendJson(res, 401, { error: 'not_signed_in' });
-        if (req.method === 'GET') return sendJson(res, 200, { user, save: store.load(user.id) });
-        if (req.method === 'PUT') {
-          // Trang game gắn chặt với người đã mở nó. Cookie thì có thể đổi dưới chân (đăng xuất
-          // Chat rồi người khác đăng nhập trên cùng máy) — lần tự lưu sau đó sẽ ghi vườn của
-          // người trước vào tài khoản người sau. Trang gửi kèm id của mình; lệch là từ chối.
-          if (req.headers['x-garden-user'] !== user.id) return sendJson(res, 409, { error: 'account_changed' });
-          let state;
-          try { state = JSON.parse(await readBody(req, MAX_SAVE_BYTES)); }
-          catch (error) { return sendJson(res, error.status || 400, { error: error.status ? 'too_large' : 'invalid_json' }); }
-          if (!state || typeof state !== 'object' || Array.isArray(state) || !Number.isFinite(state.lastSaved))
-            return sendJson(res, 400, { error: 'invalid_save' });
-          const result = store.save(user.id, user.name, state);
-          return result.ok ? sendJson(res, 200, { ok: true }) : sendJson(res, 409, { error: 'stale_save', save: result.current });
-        }
+
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
         return sendJson(res, 405, { error: 'method_not_allowed' });
       }
-      if (req.method !== 'GET' && req.method !== 'HEAD') return sendJson(res, 405, { error: 'method_not_allowed' });
-      return await serveStatic(req, res);
+
+      return await serveStatic(req, res, distDir);
     } catch (error) {
       console.error(JSON.stringify({ event: 'request_failed', message: error.message }));
       if (!res.headersSent) sendJson(res, 500, { error: 'internal' });
@@ -114,11 +136,11 @@ export function createServer({ store, chatIdentity }) {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const port = Number(process.env.PORT || 8095);
-  const store = openStore(process.env.DATA_DIR || '/data');
-  const chatIdentity = createChatIdentity({ baseUrl: process.env.CHAT_API_URL || 'http://chat:8082' });
-  const server = createServer({ store, chatIdentity });
+  const server = createServer();
   server.listen(port, () => console.log(JSON.stringify({ event: 'server_started', port })));
-  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
-    server.close(() => { store.close(); process.exit(0); });
-  });
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      server.close(() => process.exit(0));
+    });
+  }
 }

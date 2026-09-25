@@ -155,8 +155,13 @@ Idle Garden Hero/
 │   ├── main.js                   # UI controller, routing, click handlers, tick loop & multi-tab guard
 │   ├── preflight.css             # Vendored CSS reset (Tailwind v4 preflight, MIT)
 │   └── style.css                 # Custom cozy responsive design
+├── server/
+│   └── server.js                 # Hardened static HTTP server with strict CSP & security headers
 ├── test/
 │   ├── game-engine.test.js       # Engine unit tests (Node.js Test Runner)
+│   ├── security.test.js          # Security headers, anti-clickjacking & traversal tests
+│   ├── regressions.test.js       # Regression & boundary edge case tests
+│   ├── tap-pose.test.js          # Phaser animation & squash/stretch tests
 │   └── format.test.js            # Number formatting tests
 ├── AUDIT.md                      # In-depth architectural audit & optimization report
 ├── ASSETS.md                     # Asset catalog & illustration prompts
@@ -209,39 +214,67 @@ Generates optimized, minified assets into `dist/`.
 
 ## 🧪 Automated Testing
 
-The project includes 19 rigorous unit tests executed via Node.js's built-in test runner:
+The project includes 51 unit & regression tests executed via Node.js's built-in test runner:
 
 ```bash
 npm test
 ```
 
 ```
-▶ Game Engine - Math & Formulas (7 tests)
-  ✔ calculates initial LPS correctly
-  ✔ calculates LPS with multiple heroes, legion, boosts, and leaf_charm
-  ✔ calculates combat power correctly with rose_brooch
-  ✔ calculates party maximum HP correctly with oak_badge and eternal_root artifact
-  ✔ calculates upgrade costs with exponential scaling
-  ✔ calculates artifact costs with level scaling
-  ✔ calculates plot costs accurately
-  ✔ calculates wave rewards with boss multiplier, sunstone, and clover artifact
+▶ Game Engine - Math & Formulas (8 tests)
 ▶ Game Engine - Active Tapping & Ultimate Skill (2 tests)
-  ✔ calculates tap harvest rewards correctly
-  ✔ charges energy and activates Ultimate skill (Sunlight Burst)
 ▶ Game Engine - Prestige / Bloom Anew & Biomes (3 tests)
-  ✔ checks Bloom Anew requirement correctly
-  ✔ executes Bloom Anew reset cleanly and retains artifacts and seeds
-  ✔ selects correct Biome based on current Wave
 ▶ Game Engine - Combat Simulation & Progression (4 tests)
-  ✔ advances combat and clears a wave when party is strong
-  ✔ handles combat stalemate cleanly without spinning 10,000 steps
-  ✔ respects wave 150 cap
-  ✔ resilient against NaN or negative inputs in advanceCombat
 ▶ Game Engine - Save Sanitization & Corruption Resistance (2 tests)
-  ✔ returns valid default state for null or invalid JSON objects
-  ✔ cleanses NaN, Infinity, negative values, and preserves artifacts and seeds
+▶ Game Engine - Wizardry Turn-Based Tactics & Dungeon Crawler (5 tests)
+▶ Audit regressions (11 tests)
+▶ Security Suite: CSP, Anti-Clickjacking, Anti-Traversal & Privacy (5 tests)
+▶ Animation & Squash/Stretch Pose Invariants (4 tests)
+▶ Number formatting (7 tests)
 
-ℹ tests 19 | pass 19 | fail 0
+ℹ tests 51 | pass 51 | fail 0
+```
+
+---
+
+## 🔒 Security & Privacy Architecture
+
+Idle Garden Hero follows a strict **zero-trust, offline-first, client-side only** security architecture:
+
+1. **Zero External Accounts & Tracking:**
+   - No cookies, session tokens, or external identity checks.
+   - All game state is strictly saved locally via `localStorage` on the player's device.
+   - Zero telemetry or network requests during gameplay.
+
+2. **Strict Content Security Policy (CSP):**
+   - `default-src 'self'`
+   - `script-src 'self'` (Zero inline scripts, zero `eval`)
+   - `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com`
+   - `font-src https://fonts.gstatic.com`
+   - `img-src 'self' data: blob:` (Phaser textures and canvas buffers only)
+   - `connect-src 'self'` (No outbound network calls to external APIs)
+   - `frame-ancestors 'none'` (Anti-clickjacking / anti-framing protection)
+
+3. **Anti-Clickjacking & Isolation Headers:**
+   - `X-Frame-Options: DENY` (disallows iframe embedding across all origins)
+   - `X-Content-Type-Options: nosniff` (prevents MIME confusion attacks)
+   - `Referrer-Policy: strict-origin-when-cross-origin`
+   - `Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()`
+   - `Cross-Origin-Opener-Policy: same-origin`
+   - `Cross-Origin-Resource-Policy: same-origin`
+
+4. **Path Traversal & Request Sanitization:**
+   - Static file server normalizes paths, strips directory traversals (`..`), rejects null bytes (`\0`), and confines all file resolutions strictly within `dist/`.
+   - Hidden files and dotfiles are denied.
+   - Non-GET/HEAD HTTP methods are immediately rejected with `405 Method Not Allowed`.
+
+5. **Client-Side Data Sanitization (`sanitizeSave`):**
+   - Guards against prototype pollution, type coercion, `NaN`, `Infinity`, negative integers, and corrupted JSON.
+
+```sh
+# Run standalone production container
+docker build -t garden .
+docker run -p 8095:8095 garden
 ```
 
 ---
@@ -256,27 +289,3 @@ npm test
 ## 📄 License
 
 MIT © [Quyen Nguyen](https://github.com/quyenanh198)
-
-
----
-
-## 🔐 Chơi trong Chat (lưu theo tài khoản)
-
-Trên hub Lazybutts game chạy ở `chat.lazybutts.com/garden/`. Cùng host với Chat nên trình
-duyệt gửi kèm cookie đăng nhập `lb_session`; `server/server.js` hỏi Chat `GET /api/me` xem
-ai đang chơi và giữ bản lưu của người đó trong SQLite (`/data/garden.db`). Đổi máy vẫn chơi
-tiếp; máy dùng chung thì mỗi tài khoản một ô `localStorage` riêng.
-
-- `GET /api/save` → `{ user, save }`; chưa đăng nhập Chat thì 401 và game chạy bằng
-  `localStorage` như bản tĩnh (dev, GitHub Pages không đổi gì).
-- `PUT /api/save` kèm header `x-garden-user` = người mà trang đã mở ra. Lệch với cookie hiện
-  tại (đăng xuất Chat, người khác đăng nhập trên cùng máy) → `409 account_changed`: vườn của
-  người trước không bao giờ lọt vào tài khoản người sau.
-- Bản cũ hơn bản đang giữ (`lastSaved` nhỏ hơn) → `409 stale_save`, không đè tiến trình mới.
-- Reverse proxy phải **cắt tiền tố** `/garden` (Caddy `handle_path`); mọi URL phía client
-  đều tương đối.
-
-```sh
-docker build -t garden .
-docker run -p 8095:8095 -e CHAT_API_URL=http://chat:8082 -v garden-data:/data garden
-```
