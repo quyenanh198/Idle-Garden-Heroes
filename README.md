@@ -3,7 +3,7 @@
 > A cozy, mobile-friendly incremental idle garden game with active tap harvesting, automated RPG glade defense, Phaser 3 animations, built-in Web Audio synthesis, and an Ancient Artifact prestige system.
 
 [![CI Status](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml/badge.svg)](https://github.com/quyenanh198/Idle-Garden-Heroes/actions/workflows/build.yml)
-[![Tests](https://img.shields.io/badge/tests-54%20passed-brightgreen.svg)](test/game-engine.test.js)
+[![Tests](https://img.shields.io/badge/tests-60%20passed-brightgreen.svg)](test/game-engine.test.js)
 [![Vite](https://img.shields.io/badge/Vite-7.3-646CFF.svg?logo=vite)](https://vitejs.dev/)
 [![Phaser](https://img.shields.io/badge/Phaser-3.90-ff2442.svg?logo=phaser)](https://phaser.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,7 +16,9 @@
 | :---: | :---: |
 | ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Team](screenshots/combat-team-desktop.png) |
 
-[View the mobile team battle](screenshots/combat-team-mobile.png).
+[View the latest mobile garden](screenshots/garden-atlas-mobile.png) and [explorable dungeon](screenshots/dungeon-mobile.png).
+
+The Garden now has a draggable watering can that grants a 15-second production and attack boost, plus wandering butterflies with surprise rewards. Combat includes an 8×8 explored map, keyboard and touch navigation, and tappable spore deflection. Characters share a 17-frame WebP atlas, music is synthesized in the browser, and the built service worker caches current assets for offline play.
 
 ---
 

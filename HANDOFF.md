@@ -230,9 +230,15 @@ gantt
 - [x] Implement Spore Swatter deflection mechanic (tap enemy attacks mid-air).
 
 #### Milestone D: "Polishing & Optimization" (Days 15–16)
-- [ ] Pack hero and enemy sprites into unified WebP Texture Atlas.
-- [ ] Enrich procedural Web Audio engine with Kalimba ambient BGM.
-- [ ] Run full automated test suites and audit 60 FPS mobile performance.
+- [x] Pack hero and enemy sprites into unified WebP Texture Atlas.
+- [x] Enrich procedural Web Audio engine with Kalimba ambient BGM.
+- [x] Run full automated test suites and audit 60 FPS mobile performance.
+
+### Verification record (2026-09-25)
+
+- `npm test`: 60 tests pass. `npm run build`: passes; builds the 17-sprite WebP atlas and precaches 17 current build files, including local fonts.
+- Chrome mobile emulation at 390×844 @2x with 4× CPU throttling: Garden 68.1 measured rAF/s, Combat 65.2; p95 frame interval 15.2 ms on both; JavaScript heap 7.6 MB and 7.3 MB. Run `CPU_THROTTLE=4 npm run audit:mobile` with preview running to reproduce. These figures describe desktop Chrome emulation; real Snapdragon/A12 hardware and total device memory still need device testing. Phaser uses its Canvas renderer, so the WebGL draw-call gate does not apply.
+- Offline reload with the service worker active loaded the Garden and its atlas without page errors. Account-save API calls correctly remain outside the offline cache.
 
 ---
 

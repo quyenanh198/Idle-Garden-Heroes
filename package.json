@@ -6,13 +6,21 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "test": "node --test",
+    "atlas": "node scripts/build-atlas.mjs",
+    "prebuild": "npm run atlas",
     "build": "vite build",
+    "postbuild": "node scripts/inject-precache.mjs",
+    "audit:mobile": "node scripts/audit-mobile.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
+    "@fontsource-variable/dm-sans": "^5.3.0",
+    "@fontsource-variable/fredoka": "^5.3.0",
     "phaser": "^3.90.0"
   },
   "devDependencies": {
+    "puppeteer-core": "^25.12.0",
+    "sharp": "^0.35.4",
     "vite": "^7.1.0"
   }
 }

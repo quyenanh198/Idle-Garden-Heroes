@@ -5,6 +5,9 @@ let audioCtx = null;
 let masterGain = null;
 let soundEnabled = true;
 let volume = 0.7;
+let ambience = 'home';
+let ambienceStep = 0;
+let ambienceTimer = null;
 
 function getContext() {
   if (!soundEnabled || volume <= 0) return null;
@@ -41,6 +44,51 @@ export function setVolume(level) {
 
 export function isSoundEnabled() {
   return soundEnabled;
+}
+
+function pluck(ctx, frequency, start, duration = .5, strength = .055) {
+  const tone = ctx.createOscillator();
+  const overtone = ctx.createOscillator();
+  const gain = ctx.createGain();
+  tone.type = 'sine'; overtone.type = 'triangle';
+  tone.frequency.setValueAtTime(frequency, start);
+  overtone.frequency.setValueAtTime(frequency * 2, start);
+  gain.gain.setValueAtTime(.001, start);
+  gain.gain.exponentialRampToValueAtTime(strength, start + .012);
+  gain.gain.exponentialRampToValueAtTime(.001, start + duration);
+  tone.connect(gain); overtone.connect(gain); gain.connect(output(ctx));
+  tone.start(start); overtone.start(start);
+  tone.stop(start + duration + .01); overtone.stop(start + duration + .01);
+}
+
+export function setAmbience(screen) {
+  ambience = screen;
+  ambienceStep = 0;
+  if (ambienceTimer) return;
+  ambienceTimer = setInterval(() => {
+    if (document.hidden || !soundEnabled || volume <= 0) return;
+    const ctx = getContext();
+    if (!ctx || ctx.state !== 'running') return;
+    const step = ambienceStep++;
+    const now = ctx.currentTime + .015;
+    if (ambience === 'combat') {
+      const bass = [130.81, 0, 164.81, 0, 146.83, 0, 196, 0][step % 8];
+      if (bass) pluck(ctx, bass, now, .32, .037);
+      if (step % 2 === 1) pluck(ctx, [392, 440, 523.25, 493.88][Math.floor(step / 2) % 4], now, .18, .023);
+    } else {
+      const notes = [261.63, 329.63, 392, 523.25, 392, 329.63, 293.66, 392, 440, 523.25, 659.25, 523.25, 440, 392, 329.63, 293.66];
+      pluck(ctx, notes[step % notes.length], now, .58, .034);
+      if (step % 8 === 0) pluck(ctx, 130.81, now, 1.4, .012);
+      if (step % 16 === 7) pluck(ctx, 1174.66, now + .1, .15, .008);
+    }
+  }, 390);
+}
+
+export function playWater() {
+  const ctx = getContext();
+  if (!ctx) return;
+  const now = ctx.currentTime;
+  for (let i = 0; i < 4; i++) pluck(ctx, [392, 523.25, 659.25, 783.99][i], now + i * .047, .26, .07);
 }
 
 export function playTap() {

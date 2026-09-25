@@ -61,6 +61,8 @@ import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
   setVolume,
+  setAmbience,
+  playWater,
   playTap,
   playCritTap,
   playUpgrade,
@@ -73,8 +75,12 @@ import {
   playTurnSelect,
 } from './audio.js';
 
-const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
-const heroPortrait = (hero) => `<img src="${ASSET_BASE}${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
+const heroPortrait = (hero) => {
+  const index = Object.keys(HERO_IMAGES).indexOf(hero.id);
+  const x = (index % 5) * 25;
+  const y = Math.floor(index / 5) * (100 / 3);
+  return `<span class="atlas-portrait" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/atlas-characters.webp');background-position:${x}% ${y}%"></span>`;
+};
 const BASE_SAVE_KEY = 'idle-garden-hero-v1';
 const readStored = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
 // Mở trong Chat thì tiến trình đi theo tài khoản: server giữ bản lưu, đổi máy vẫn chơi tiếp.
@@ -398,6 +404,7 @@ const gardenInteractions = initGardenInteractions({
   onWater: heroId => {
     if (!waterHero(state, heroId)) return false;
     visuals?.tapHero(heroId);
+    playWater();
     pulse('water', state.settings.haptics);
     save();
     renderNumbers();
@@ -1007,6 +1014,7 @@ function showScreen(name, updateHistory = true) {
   if (!SCREENS.includes(name)) name = 'home';
   if (name === activeScreen) return;
   activeScreen = name;
+  setAmbience(name);
   if (updateHistory) history.pushState(null, '', name === 'home' ? location.pathname + location.search : `#${name}`);
   document.querySelectorAll('.screen-link,.dock-link').forEach(button => { const current = button.dataset.screen === name; button.classList.toggle('active', current); if (current) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current'); });
   SCREENS.forEach(screen => { document.querySelector(`#${screen}-screen`).hidden = screen !== name; });
@@ -1426,6 +1434,7 @@ function tick() {
 
 renderAll();
 applySettings();
+setAmbience('home');
 const initialScreen = location.hash.slice(1);
 if (SCREENS.includes(initialScreen) && initialScreen !== 'home') showScreen(initialScreen, false);
 window.addEventListener('popstate', () => showScreen(location.hash.slice(1) || 'home', false));
@@ -1503,7 +1512,7 @@ window.addEventListener('storage', (event) => {
 });
 // Offline support + installability. Dev server skips it so hot reload isn't served stale files.
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* offline support is optional */ });
-  });
+  const registerOffline = () => navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* offline support is optional */ });
+  if (document.readyState === 'complete') registerOffline();
+  else window.addEventListener('load', registerOffline, { once: true });
 }
