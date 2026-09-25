@@ -16,7 +16,7 @@
 | :---: | :---: |
 | ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Team](screenshots/combat-team-desktop.png) |
 
-[View the latest mobile garden](screenshots/garden-atlas-mobile.png) and [explorable dungeon](screenshots/dungeon-mobile.png).
+[View the latest mobile garden](screenshots/garden-atlas-mobile.png), [team combat on mobile](screenshots/combat-fixed-mobile.png), and [team combat on desktop](screenshots/combat-fixed-desktop.png).
 
 The Garden now has a draggable watering can that grants a 15-second production and attack boost, plus wandering butterflies with surprise rewards. Combat includes an 8×8 explored map, keyboard and touch navigation, and tappable spore deflection. Characters share a 17-frame WebP atlas, music is synthesized in the browser, and the built service worker caches current assets for offline play.
 

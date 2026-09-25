@@ -3,6 +3,7 @@ import {
   HEROES,
   PLOT_COSTS,
   HERO_IMAGES,
+  ENEMY_IMAGES,
   BOOSTS,
   UNITS,
   ACCESSORIES,
@@ -79,7 +80,7 @@ const heroPortrait = (hero) => {
   const index = Object.keys(HERO_IMAGES).indexOf(hero.id);
   const x = (index % 5) * 25;
   const y = Math.floor(index / 5) * (100 / 3);
-  return `<span class="atlas-portrait" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/atlas-characters.webp');background-position:${x}% ${y}%"></span>`;
+  return `<i class="atlas-portrait" aria-hidden="true" style="background-image:url('${import.meta.env.BASE_URL}assets/atlas-characters.webp');background-position:${x}% ${y}%"></i>`;
 };
 const BASE_SAVE_KEY = 'idle-garden-hero-v1';
 const readStored = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
@@ -232,21 +233,12 @@ app.innerHTML = `
         </div>
       </section>
 
-      <!-- 1st-Person Perspective Dungeon Corridor Viewport -->
-      <section class="battlefield drpg-corridor-frame" aria-label="1st-person dungeon corridor arena">
-        <div class="dungeon-explorer" aria-label="Dungeon exploration">
-          <div class="dungeon-view"><canvas id="dungeon-canvas" width="640" height="330" aria-label="First-person stone corridor"></canvas><div class="dungeon-view-caption">MOSSY CRYPT · STEP <span id="dungeon-step">0</span></div></div>
-          <div class="dungeon-sidebar"><strong>EXPLORER MAP</strong><div class="dungeon-map" id="dungeon-map" role="img" aria-label="Explored dungeon map"></div><span id="dungeon-compass">FACING E</span><div class="dungeon-keys"><button data-dungeon="left" aria-label="Turn left">↶</button><button data-dungeon="forward" aria-label="Move forward">↑</button><button data-dungeon="right" aria-label="Turn right">↷</button><button data-dungeon="back" aria-label="Step back">↓</button></div></div>
-        </div>
-        <button class="spore-projectile" id="spore-projectile" type="button" aria-label="Deflect incoming spore" hidden>✦<small>TAP TO DEFLECT</small></button>
-        <div class="corridor-torch torch-left"><span class="torch-flame">🔥</span></div>
-        <div class="corridor-torch torch-right"><span class="torch-flame">🔥</span></div>
-
+      <!-- Shared team battle with a compact explorable dungeon below -->
+      <section class="battlefield drpg-corridor-frame" aria-label="Team combat and dungeon exploration">
         <div class="battlefield-top">
           <span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span>
           <span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span>
         </div>
-
         <div class="battle-squad-banner">
           <div><small>YOUR GARDEN TEAM</small><strong id="squad-banner-count">1 hero ready</strong></div>
           <div class="squad-portraits" id="squad-portraits"></div>
@@ -254,6 +246,7 @@ app.innerHTML = `
         </div>
 
         <div class="battle-arena">
+          <button class="spore-projectile" id="spore-projectile" type="button" aria-label="Deflect incoming spore" hidden>✦<small>TAP TO DEFLECT</small></button>
           <div class="battle-side legion-side">
             <div class="battle-side-label">EXPEDITION PARTY</div>
             <div class="battle-figures" id="battle-figures"></div>
@@ -291,6 +284,11 @@ app.innerHTML = `
             <span class="ult-tag">2× DMG · HEAL 40%</span>
           </button>
           <div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div>
+        </div>
+
+        <div class="dungeon-explorer" aria-label="Dungeon exploration">
+          <div class="dungeon-view"><canvas id="dungeon-canvas" width="640" height="330" aria-label="First-person stone corridor"></canvas><div class="dungeon-encounter" id="dungeon-encounter" aria-hidden="true"><i class="dungeon-enemy-art"></i></div><div class="dungeon-view-caption">MOSSY CRYPT · STEP <span id="dungeon-step">0</span></div></div>
+          <div class="dungeon-sidebar"><strong>EXPLORER MAP</strong><div class="dungeon-map" id="dungeon-map" role="img" aria-label="Explored dungeon map"></div><span id="dungeon-compass">FACING E</span><div class="dungeon-keys"><button data-dungeon="left" aria-label="Turn left">↶</button><button data-dungeon="forward" aria-label="Move forward">↑</button><button data-dungeon="right" aria-label="Turn right">↷</button><button data-dungeon="back" aria-label="Step back">↓</button></div></div>
         </div>
 
         <div class="battlefield-bottom">
@@ -640,6 +638,15 @@ function renderDungeon() {
   map.setAttribute('aria-label', `Dungeon map, step ${dungeon.steps}, facing ${FACING[dungeon.facing]}`);
   document.querySelector('#dungeon-step').textContent = dungeon.steps;
   document.querySelector('#dungeon-compass').textContent = `FACING ${FACING[dungeon.facing]}`;
+  const enemy = enemyForWave(state.battle.wave);
+  const enemyIndex = Object.keys(ENEMY_IMAGES).indexOf(enemy.tint);
+  const encounter = document.querySelector('#dungeon-encounter');
+  const enemyArt = encounter?.querySelector('.dungeon-enemy-art');
+  if (enemyArt && enemyIndex >= 0) {
+    enemyArt.style.backgroundImage = `url('${import.meta.env.BASE_URL}assets/atlas-characters.webp')`;
+    enemyArt.style.backgroundPosition = `${((enemyIndex + 12) % 5) * 25}% ${Math.floor((enemyIndex + 12) / 5) * (100 / 3)}%`;
+    encounter.title = `${enemy.name} ahead`;
+  }
   paintCorridor(document.querySelector('#dungeon-canvas'), dungeon, Date.now());
 }
 
