@@ -320,7 +320,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       this.fx = new Set();
       document.body.classList.add('phaser-combat-ready');
       this.sync();
-      this.time.addEvent({ delay: 850, loop: true, callback: () => this.attack() });
+      this.attackTimer = this.time.addEvent({ delay: 850, loop: true, callback: () => this.attack() });
       this.time.addEvent({ delay: 1700, loop: true, callback: () => this.enemyAttack() });
       this.tweens.timeScale = getMotion() ? 1 : 0;
       this.time.timeScale = getMotion() ? 1 : 0;
@@ -401,6 +401,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
       });
     }
     attack() {
+      this.attackTimer.delay = getState()?.gardenBuff?.until > Date.now() ? 600 : 850;
       if (getScreen() !== 'combat' || !canAnimate() || isStalled() || !this.enemy || !this.characters.length) return;
       const fighters = this.characters.filter(character => character.active && Number.isFinite(character.x) && Number.isFinite(character.y));
       if (!fighters.length) return;
@@ -414,6 +415,11 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
           playCombatPose(this, source);
           const projColor = colors[source.heroId] || 0xf8d77a;
           const spark = this.add.ellipse(source.x + 15, source.y - 12, 16, 9, projColor).setRotation(-0.6);
+          if (index < 3) this.time.addEvent({ delay: 54, repeat: 4, callback: () => {
+            if (!spark.active) return;
+            const trace = this.add.circle(spark.x, spark.y, 4, projColor, .65);
+            spawnFx(this, trace, { alpha: 0, scale: .2, duration: 220 });
+          } });
           spawnFx(this, spark, { x: this.enemy.x - 17 + Phaser.Math.Between(-12, 12), y: this.enemy.y - 6 + Phaser.Math.Between(-15, 15), rotation: 4, duration: 280 + index * 15, ease: 'Sine.easeIn', onComplete: () => {
             if (!this.enemy?.active || getScreen() !== 'combat') return;
             if (index === visible.length - 1) {
@@ -426,9 +432,11 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
             const rest = restPose(target);
             this.tweens.add({ targets: target, scaleX: rest.scaleX * 1.05, scaleY: rest.scaleY * 0.96, duration: 80, yoyo: true,
               onComplete: () => { if (target.active) target.setScale(rest.scaleX, rest.scaleY); } });
-            for (let i = 0; i < 3; i++) {
+            for (let i = 0; i < 5; i++) {
               const particle = this.add.circle(this.enemy.x, this.enemy.y - 8, Phaser.Math.Between(2, 5), i % 2 ? 0xf0c879 : projColor);
-              spawnFx(this, particle, { x: particle.x + Phaser.Math.Between(-30, 30), y: particle.y + Phaser.Math.Between(-26, 24), alpha: 0, duration: 360 });
+              const angle = -Math.PI / 2 + (i / 4) * Math.PI;
+              const distance = Phaser.Math.Between(22, 48);
+              spawnFx(this, particle, { x: particle.x + Math.cos(angle) * distance, y: particle.y + Math.sin(angle) * distance, alpha: 0, duration: 360 });
             }
           } });
         });

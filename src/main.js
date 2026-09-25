@@ -19,6 +19,9 @@ import {
   heroPower,
   unitPower,
   harvestMultiplier,
+  waterHero,
+  awardLuckyCritter,
+  consumeFrenzyTap,
   troopCount,
   lps,
   combatPower,
@@ -50,6 +53,8 @@ import {
 
 import { fmt, fmtRate } from './format.js';
 import { createEnvironment } from './environment.js';
+import { initGardenInteractions } from './garden-interactions.js';
+import { pulse } from './haptics.js';
 import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
@@ -375,6 +380,37 @@ const content = document.querySelector('#tab-content');
 const stage = document.querySelector('#tab-stage');
 createEnvironment(document.querySelector('.garden-panel'), { getMotion: () => state.settings.motion });
 const combatEnvironment = createEnvironment(document.querySelector('.battlefield'), { getMotion: () => state.settings.motion });
+const gardenInteractions = initGardenInteractions({
+  panel: document.querySelector('.garden-panel'),
+  grid,
+  getState: () => state,
+  getScreen: () => activeScreen,
+  getMotion: () => state.settings.motion,
+  onWater: heroId => {
+    if (!waterHero(state, heroId)) return false;
+    visuals?.tapHero(heroId);
+    pulse('water', state.settings.haptics);
+    save();
+    renderNumbers();
+    renderGrid();
+    renderPanel();
+    toast('Lush Bloom! +50% leaves and faster attacks for 15 seconds.');
+    return true;
+  },
+  onCritter: () => {
+    const reward = ['harvest', 'frenzy', 'shard'][Math.floor(Math.random() * 3)];
+    const result = awardLuckyCritter(state, reward);
+    pulse('reward', state.settings.haptics);
+    save();
+    renderNumbers();
+    if (reward === 'harvest') toast(`Golden Butterfly! +${fmt(result.amount)} leaves.`);
+    if (reward === 'frenzy') toast('Golden Butterfly! Your next 10 taps yield 5× leaves.');
+    if (reward === 'shard') toast(result.seedCompleted ? 'Five shards became one Golden Seed!' : 'Golden Butterfly! +1 Golden Seed shard.');
+  },
+});
+app.addEventListener('pointerdown', event => {
+  if (event.target.closest('button:not(:disabled):not(.hero-plot):not(.watering-can):not(.lucky-critter)')) pulse('tap', state.settings.haptics);
+});
 
 function save() {
   if (resetting || pausedByOtherTab) return;
@@ -650,6 +686,7 @@ function executeCombatTurn(manualActions = null) {
 
   if (hasVictory) {
     playVictory();
+    pulse('victory', state.settings.haptics);
     if (activeScreen === 'upgrades') renderUpgrades();
     renderCombat();
   } else {
@@ -909,6 +946,10 @@ function renderSettings() {
         <div class="setting-row">
           <div><strong>Sound effects</strong><small>Cozy synth melodies for harvests, attacks, and victories</small></div>
           <button class="toggle ${state.settings.sound ? 'on' : ''}" role="switch" aria-checked="${state.settings.sound}" data-setting="sound" aria-label="Sound effects"><span></span></button>
+        </div>
+        <div class="setting-row">
+          <div><strong>Touch feedback</strong><small>Gentle vibration on supported phones</small></div>
+          <button class="toggle ${state.settings.haptics ? 'on' : ''}" role="switch" aria-checked="${state.settings.haptics}" data-setting="haptics" aria-label="Touch feedback"><span></span></button>
         </div>
         <div class="setting-row">
           <div><strong>Volume</strong><small id="volume-label">${state.settings.volume}%</small></div>
@@ -1182,19 +1223,22 @@ app.addEventListener('click', (event) => {
   const select = event.target.closest('[data-select]');
   if (select) {
     const heroId = select.dataset.select;
+    if (select.classList.contains('hero-plot') && gardenInteractions.consumeWater(heroId)) return;
     const selectionChanged = selectedHero !== heroId;
     selectedHero = heroId;
 
     // Active tap harvest if tapping on an unlocked hero plot
     const hero = HEROES.find(h => h.id === heroId);
     if (hero && state.heroes[heroId] && select.classList.contains('hero-plot')) {
-      const { amount, isCrit } = tapHarvestReward(hero, state.heroes[heroId], state);
+      const tap = tapHarvestReward(hero, state.heroes[heroId], state);
+      const { isCrit } = tap;
+      const amount = consumeFrenzyTap(state, tap.amount);
       state.leaves += amount;
       state.totalHarvested += amount;
       renderNumbers();
       visuals?.tapHero(heroId);
-      if (isCrit) playCritTap();
-      else playTap();
+      if (isCrit) { playCritTap(); pulse('crit', state.settings.haptics); }
+      else { playTap(); pulse('tap', state.settings.haptics); }
 
       if (state.settings.floatingText) {
         const span = document.createElement('span');
@@ -1248,6 +1292,10 @@ app.addEventListener('click', (event) => {
 function tick() {
   if (document.hidden || pausedByOtherTab) return;
   const now = Date.now();
+  if (state.gardenBuff?.until && now >= state.gardenBuff.until) {
+    state.gardenBuff = { heroId: null, until: 0 };
+    if (activeScreen === 'garden') { renderGrid(); renderPanel(); }
+  }
   const dt = Math.min(1, Math.max(0, (now - lastTick) / 1000));
   lastTick = now;
   const gained = getLps() * dt;
@@ -1257,7 +1305,7 @@ function tick() {
 
   if (activeScreen === 'combat') {
     if ((state.tactics?.mode || 'auto') === 'auto') {
-      if (now - lastAutoTurn >= 1200) {
+      if (now - lastAutoTurn >= (state.gardenBuff?.until > now ? 900 : 1200)) {
         lastAutoTurn = now;
         executeCombatTurn();
       }
@@ -1269,6 +1317,7 @@ function tick() {
     renderNumbers();
     if (state.battle.wave !== waveBefore) {
       playVictory();
+      pulse('victory', state.settings.haptics);
       if (activeScreen === 'upgrades') renderUpgrades();
     }
   }

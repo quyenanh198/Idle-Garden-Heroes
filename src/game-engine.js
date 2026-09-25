@@ -149,6 +149,9 @@ export const DEFAULT_STATE = {
   boosts: { harvest: 0, power: 0, vitality: 0 },
   artifacts: { sunlight_crystal: 0, fertile_soil: 0, eternal_root: 0, golden_can: 0, clover_fortune: 0 },
   goldenSeeds: 0,
+  seedShards: 0,
+  frenzyTaps: 0,
+  gardenBuff: { heroId: null, until: 0 },
   bloomCount: 0,
   // Wins across every Bloom Anew cycle; accessories unlock from this so prestige keeps them.
   lifetimeWins: 0,
@@ -159,13 +162,14 @@ export const DEFAULT_STATE = {
     attackOrder: [...DEFAULT_TACTICS.attackOrder],
     actions: { ...DEFAULT_TACTICS.actions },
   },
-  settings: { motion: true, floatingText: true, sound: true, volume: 70 },
+  settings: { motion: true, floatingText: true, sound: true, haptics: true, volume: 70 },
   lastSaved: Date.now(),
 };
 
 export const MIN_BLOOM_WAVE = 25;
 export const MAX_WAVE = 150;
 export const ULT_DURATION_MS = 8000;
+export const LUSH_BLOOM_DURATION_MS = 15_000;
 export const MAX_BOOST_LEVEL = 20;
 export const MAX_ARTIFACT_LEVEL = 1000;
 
@@ -188,6 +192,42 @@ export function harvestMultiplier(state) {
   return boostMult * artifactMult * charmMult;
 }
 
+export function lushBloomMultiplier(state, now = Date.now()) {
+  return state?.gardenBuff?.until > now ? 1.5 : 1;
+}
+
+export function waterHero(state, heroId, now = Date.now()) {
+  if (!state?.heroes?.[heroId] || !Number.isFinite(now)) return false;
+  state.gardenBuff = { heroId, until: now + LUSH_BLOOM_DURATION_MS };
+  return true;
+}
+
+export function awardLuckyCritter(state, reward, now = Date.now()) {
+  if (reward === 'harvest') {
+    const amount = Math.ceil(lps(state, now) * 30);
+    state.leaves += amount;
+    state.totalHarvested += amount;
+    return { reward, amount };
+  }
+  if (reward === 'frenzy') {
+    state.frenzyTaps = 10;
+    return { reward, amount: 10 };
+  }
+  if (reward === 'shard') {
+    const total = (state.seedShards || 0) + 1;
+    state.seedShards = total % 5;
+    if (total >= 5) state.goldenSeeds = (state.goldenSeeds || 0) + 1;
+    return { reward, amount: 1, seedCompleted: total >= 5 };
+  }
+  return null;
+}
+
+export function consumeFrenzyTap(state, amount) {
+  if ((state?.frenzyTaps || 0) <= 0) return amount;
+  state.frenzyTaps -= 1;
+  return amount * 5;
+}
+
 export function powerMultiplier(state, now = Date.now()) {
   const boostMult = 1 + (state?.boosts?.power || 0) * 0.2;
   const artifactMult = 1 + artifactValue(state, 'sunlight_crystal');
@@ -198,8 +238,8 @@ export function powerMultiplier(state, now = Date.now()) {
 }
 
 // Per-hero rates including every multiplier, so UI numbers match the real totals.
-export function heroLps(state, hero) {
-  return (state?.heroes?.[hero.id] || 0) * hero.baseLps * harvestMultiplier(state);
+export function heroLps(state, hero, now = Date.now()) {
+  return (state?.heroes?.[hero.id] || 0) * hero.baseLps * harvestMultiplier(state) * lushBloomMultiplier(state, now);
 }
 
 export function heroPower(state, hero, now = Date.now()) {
@@ -210,11 +250,11 @@ export function unitPower(state, unit, now = Date.now()) {
   return (state?.legion?.[unit.id] || 0) * unit.power * powerMultiplier(state, now);
 }
 
-export function lps(state) {
+export function lps(state, now = Date.now()) {
   if (!state) return 0;
   const heroesHarvest = HEROES.reduce((sum, hero) => sum + (state.heroes?.[hero.id] || 0) * hero.baseLps, 0);
   const unitsHarvest = UNITS.reduce((sum, unit) => sum + (state.legion?.[unit.id] || 0) * unit.harvest, 0);
-  return (heroesHarvest + unitsHarvest) * harvestMultiplier(state);
+  return (heroesHarvest + unitsHarvest) * harvestMultiplier(state) * lushBloomMultiplier(state, now);
 }
 
 export function combatPower(state, now = Date.now()) {
@@ -331,6 +371,8 @@ export function bloomAnew(state) {
   state.heroes = { sprout: 1 };
   state.legion = { scout: 0, archer: 0, guardian: 0 };
   state.boosts = { harvest: 0, power: 0, vitality: 0 };
+  state.gardenBuff = { heroId: null, until: 0 };
+  state.frenzyTaps = 0;
 
   const newMaxHp = partyMaxHp(state);
   state.battle = {
@@ -643,6 +685,7 @@ export function sanitizeSave(raw) {
       heroes: { ...DEFAULT_STATE.heroes },
       legion: { ...DEFAULT_STATE.legion },
       boosts: { ...DEFAULT_STATE.boosts },
+      gardenBuff: { ...DEFAULT_STATE.gardenBuff },
       artifacts: { ...DEFAULT_STATE.artifacts },
       tactics: sanitizeTactics(null),
       settings: { ...DEFAULT_STATE.settings },
@@ -711,6 +754,13 @@ export function sanitizeSave(raw) {
     boosts,
     artifacts,
     goldenSeeds: Number.isFinite(Number(raw.goldenSeeds)) ? Math.max(0, Math.floor(Number(raw.goldenSeeds))) : 0,
+    seedShards: Number.isFinite(Number(raw.seedShards)) ? Math.max(0, Math.min(4, Math.floor(Number(raw.seedShards)))) : 0,
+    frenzyTaps: Number.isFinite(Number(raw.frenzyTaps)) ? Math.max(0, Math.min(10, Math.floor(Number(raw.frenzyTaps)))) : 0,
+    gardenBuff: {
+      heroId: Object.hasOwn(heroes, raw.gardenBuff?.heroId) ? raw.gardenBuff.heroId : null,
+      until: Object.hasOwn(heroes, raw.gardenBuff?.heroId) && Number.isFinite(Number(raw.gardenBuff?.until))
+        ? Math.max(0, Math.min(now + LUSH_BLOOM_DURATION_MS, Number(raw.gardenBuff.until))) : 0,
+    },
     bloomCount: Number.isFinite(Number(raw.bloomCount)) ? Math.max(0, Math.floor(Number(raw.bloomCount))) : 0,
     lifetimeWins: totalWins,
     equipped,
@@ -719,6 +769,7 @@ export function sanitizeSave(raw) {
       motion: raw.settings?.motion !== false,
       floatingText: raw.settings?.floatingText !== false,
       sound: raw.settings?.sound !== false,
+      haptics: raw.settings?.haptics !== false,
       volume: Number.isFinite(volumeVal) ? Math.max(0, Math.min(100, Math.round(volumeVal))) : DEFAULT_STATE.settings.volume,
     },
     battle: {

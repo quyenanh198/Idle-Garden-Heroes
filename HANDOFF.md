@@ -219,10 +219,10 @@ gantt
 - [x] Add hit-stop and subtle screen shake to combat critical strikes.
 
 #### Milestone B: "Tactile Garden" (Days 6–9)
-- [ ] Implement draggable Watering Can tool with temporary boost mechanics.
-- [ ] Add wandering Golden Butterflies with reward jackpots on tap.
-- [ ] Integrate mobile vibration API (`navigator.vibrate`) across all interactions.
-- [ ] Upgrade combat projectiles with colored light trails and directional impact sparks.
+- [x] Implement draggable Watering Can tool with temporary boost mechanics.
+- [x] Add wandering Golden Butterflies with reward jackpots on tap.
+- [x] Integrate mobile vibration API (`navigator.vibrate`) across all interactions.
+- [x] Upgrade combat projectiles with colored light trails and directional impact sparks.
 
 #### Milestone C: "The Garden Crypts" (Days 10–14)
 - [ ] Build first-person pseudo-3D dungeon hallway viewport for Wizardry mode.
