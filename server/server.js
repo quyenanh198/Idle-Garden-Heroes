@@ -19,14 +19,18 @@ const TYPES = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
 };
 // Đúng những gì game dùng: script/ảnh của chính nó, font Google, và Phaser vẽ canvas
 // (ảnh tạo từ blob:/data:). Không có 'unsafe-inline' cho script.
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  'font-src https://fonts.gstatic.com',
+  // Font giờ nằm ngay trong bản build (assets/*.woff2), không tải từ Google nữa. Để
+  // font-src chỉ có fonts.gstatic.com thì trình duyệt chặn font của chính game và âm
+  // thầm rơi về font hệ thống — không lỗi nào hiện ra, chỉ thấy chữ sai kiểu.
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "connect-src 'self'",

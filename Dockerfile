@@ -9,6 +9,9 @@ RUN npm ci
 COPY index.html vite.config.js ./
 COPY public ./public
 COPY src ./src
+# `npm run build` giờ có prebuild (gộp sprite thành atlas bằng sharp) và postbuild
+# (chèn danh sách precache vào sw.js) — cả hai nằm trong scripts/.
+COPY scripts ./scripts
 RUN npm run build
 
 FROM node:22-alpine

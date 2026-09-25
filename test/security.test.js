@@ -26,6 +26,8 @@ test('Chat embedding stays same-origin and browser security headers remain activ
     assert.equal(response.status, 200);
     assert.match(response.headers.get('content-security-policy'), /script-src 'self'/);
     assert.match(response.headers.get('content-security-policy'), /frame-ancestors 'self'/);
+    // Font tự chứa trong bản build: CSP phải cho phép 'self', không thì chữ rơi về font hệ thống.
+    assert.match(response.headers.get('content-security-policy'), /font-src 'self'/);
     assert.equal(response.headers.get('x-frame-options'), 'SAMEORIGIN');
     assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(response.headers.get('cross-origin-opener-policy'), 'same-origin');
