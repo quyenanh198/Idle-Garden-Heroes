@@ -44,6 +44,7 @@ import {
 } from './game-engine.js';
 
 import { fmt, fmtRate } from './format.js';
+import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
   setVolume,
@@ -57,7 +58,17 @@ import {
 
 const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 const heroPortrait = (hero) => `<img src="${ASSET_BASE}${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
-const SAVE_KEY = 'idle-garden-hero-v1';
+const BASE_SAVE_KEY = 'idle-garden-hero-v1';
+const readStored = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+// Mở trong Chat thì tiến trình đi theo tài khoản: server giữ bản lưu, đổi máy vẫn chơi tiếp.
+// Máy dùng chung thì mỗi người một ô localStorage riêng — người sau không kế thừa (rồi đẩy
+// lên tài khoản mình) khu vườn của người trước.
+const cloud = await connectCloud();
+const SAVE_KEY = cloud ? `${BASE_SAVE_KEY}:${cloud.user.id}` : BASE_SAVE_KEY;
+if (cloud?.save && pickNewer(readStored(SAVE_KEY), cloud.save) === 'cloud') {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(cloud.save)); } catch { /* storage unavailable */ }
+}
+const cloudSaver = cloud ? createCloudSaver({ userId: cloud.user.id, onConflict: (reason) => showNewerElsewhere(reason) }) : null;
 // The newest tab claims this key; older tabs pause so two tabs never overwrite each other's save.
 const OWNER_KEY = `${SAVE_KEY}-owner`;
 const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -74,6 +85,8 @@ const ICONS = {
   check: '<path d="m5 12 4 4L19 6"/>',
 };
 const icon = (name, size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 function load() {
   try {
@@ -118,6 +131,9 @@ if (offlineSeconds > 5) {
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
 }
+// Vườn đang chơi trên máy này mới hơn bản trên server (hoặc server chưa có gì — lần đầu
+// mở trong Chat): đẩy lên luôn, không đợi thao tác đầu tiên.
+if (cloud && pickNewer(state, cloud.save) !== 'cloud') cloudSaver.schedule(state);
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -175,6 +191,22 @@ function save() {
   if (resetting || pausedByOtherTab) return;
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* Game remains playable without storage. */ }
+  cloudSaver?.schedule(state);
+}
+// Máy khác vừa lưu bản mới hơn (hay gặp khi đồng hồ máy này chạy chậm): dừng lại như khi bị
+// tab khác giành quyền, để không đè lên tiến trình mới đó.
+function showNewerElsewhere(reason) {
+  if (pausedByOtherTab) return;
+  pausedByOtherTab = true;
+  document.body.classList.add('paused-by-other-tab');
+  const banner = document.createElement('div');
+  banner.className = 'tab-paused-banner';
+  banner.setAttribute('role', 'alert');
+  banner.innerHTML = reason === 'account_changed'
+    ? '<strong>You switched Chat accounts.</strong><span>This garden belongs to the previous account, so it stopped saving.</span><button type="button">Open my garden</button>'
+    : '<strong>Your garden was saved more recently on another device.</strong><span>This screen is paused so it won\'t overwrite that progress.</span><button type="button">Load latest</button>';
+  banner.querySelector('button').addEventListener('click', () => location.reload());
+  app.append(banner);
 }
 function toast(message) {
   const el = document.querySelector('#toast');
@@ -472,8 +504,8 @@ function renderSettings() {
       <section class="settings-card">
         <span class="section-kicker">PROGRESS</span>
         <h2>Your save</h2>
-        <p>Your garden saves automatically in this browser.</p>
-        <div class="save-info">${icon('check', 19)} Local save is active</div>
+        <p>${cloud ? 'Your garden saves automatically to your Chat account, so it follows you to any device.' : 'Your garden saves automatically in this browser.'}</p>
+        <div class="save-info">${icon('check', 19)} ${cloud ? `Saved to ${escapeHtml(cloud.user.name)}'s account` : 'Local save is active'}</div>
         <button class="settings-action" data-save>Save progress now ${icon('arrow', 16)}</button>
         <div class="settings-divider"></div>
         <h3>Start a new garden</h3>
@@ -626,7 +658,18 @@ app.addEventListener('click', (event) => {
   if (event.target.closest('[data-save]')) { save(); toast('Garden progress saved.'); return; }
   if (event.target.closest('[data-reset]')) { resetPending = true; renderSettings(); return; }
   if (event.target.closest('[data-reset-cancel]')) { resetPending = false; renderSettings(); return; }
-  if (event.target.closest('[data-reset-confirm]')) { resetting = true; localStorage.removeItem(SAVE_KEY); location.href = location.pathname + location.search; return; }
+  if (event.target.closest('[data-reset-confirm]')) {
+    resetting = true;
+    localStorage.removeItem(SAVE_KEY);
+    const restart = () => { location.href = location.pathname + location.search; };
+    // Bản lưu trên server mới hơn ô trống thì lần mở sau sẽ lấy lại vườn cũ — ghi đè nó bằng
+    // một vườn mới tinh (đóng dấu thời gian bây giờ) trước khi tải lại.
+    if (cloudSaver) {
+      cloudSaver.schedule({ ...sanitizeSave(null), lastSaved: Date.now() });
+      Promise.resolve(cloudSaver.flush(true)).finally(restart);
+    } else restart();
+    return;
+  }
   const tab = event.target.closest('[data-tab]');
   if (tab && tab.dataset.tab !== activeTab) {
     activeTab = tab.dataset.tab;
@@ -779,6 +822,7 @@ document.addEventListener('visibilitychange', () => {
   if (pausedByOtherTab) return;
   if (document.hidden) {
     save();
+    cloudSaver?.flush(true);
   } else {
     const now = Date.now();
     const elapsed = Math.min(8 * 60 * 60, Math.max(0, (now - lastTick) / 1000));
@@ -791,7 +835,7 @@ document.addEventListener('visibilitychange', () => {
     }
   }
 });
-window.addEventListener('pagehide', save);
+window.addEventListener('pagehide', () => { save(); cloudSaver?.flush(true); });
 app.addEventListener('input', (event) => {
   const slider = event.target.closest('[data-volume]');
   if (!slider) return;

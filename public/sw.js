@@ -6,7 +6,11 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
+  const url = new URL(request.url);
+  if (request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Bản lưu theo tài khoản không được đệm: máy dùng chung mà offline thì người này có thể
+  // nhận bản lưu đã đệm của người kia.
+  if (url.pathname.includes('/api/')) return;
   event.respondWith(
     fetch(request)
       .then((response) => {
