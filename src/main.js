@@ -44,6 +44,7 @@ import {
 } from './game-engine.js';
 
 import { fmt, fmtRate } from './format.js';
+import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
   setVolume,
@@ -57,7 +58,17 @@ import {
 
 const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
 const heroPortrait = (hero) => `<img src="${ASSET_BASE}${HERO_IMAGES[hero.id]}.webp" alt="" loading="lazy" />`;
-const SAVE_KEY = 'idle-garden-hero-v1';
+const BASE_SAVE_KEY = 'idle-garden-hero-v1';
+const readStored = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+// Mở trong Chat thì tiến trình đi theo tài khoản: server giữ bản lưu, đổi máy vẫn chơi tiếp.
+// Máy dùng chung thì mỗi người một ô localStorage riêng — người sau không kế thừa (rồi đẩy
+// lên tài khoản mình) khu vườn của người trước.
+const cloud = await connectCloud();
+const SAVE_KEY = cloud ? `${BASE_SAVE_KEY}:${cloud.user.id}` : BASE_SAVE_KEY;
+if (cloud?.save && pickNewer(readStored(SAVE_KEY), cloud.save) === 'cloud') {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(cloud.save)); } catch { /* storage unavailable */ }
+}
+const cloudSaver = cloud ? createCloudSaver({ userId: cloud.user.id, onConflict: (reason) => showNewerElsewhere(reason) }) : null;
 // The newest tab claims this key; older tabs pause so two tabs never overwrite each other's save.
 const OWNER_KEY = `${SAVE_KEY}-owner`;
 const TAB_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -74,6 +85,8 @@ const ICONS = {
   check: '<path d="m5 12 4 4L19 6"/>',
 };
 const icon = (name, size = 20) => `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name]}</svg>`;
+
+const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 function load() {
   try {
@@ -118,6 +131,9 @@ if (offlineSeconds > 5) {
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* ignore */ }
 }
+// Vườn đang chơi trên máy này mới hơn bản trên server (hoặc server chưa có gì — lần đầu
+// mở trong Chat): đẩy lên luôn, không đợi thao tác đầu tiên.
+if (cloud && pickNewer(state, cloud.save) !== 'cloud') cloudSaver.schedule(state);
 
 const app = document.querySelector('#app');
 app.innerHTML = `
@@ -155,8 +171,8 @@ app.innerHTML = `
       </section>
     </main>
     <main id="combat-screen" class="screen-view" hidden>
-      <section class="combat-intro"><div><div class="eyebrow">✦ &nbsp; THE GLADE NEEDS YOU</div><h1>Defend the <em>garden.</em></h1><p>Your heroes fight automatically while you tend your little world.</p></div><div class="combat-wave-pill">⚔️ &nbsp; WAVE <strong id="wave-label">1</strong></div></section>
-      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">YOUR LEGION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Legion</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
+      <section class="combat-intro"><div><div class="eyebrow">✦ &nbsp; THE GLADE NEEDS YOU</div><h1>Fight as <em>one team.</em></h1><p>Every hero and troop joins the same battle. Watch their attacks flow together.</p></div><div class="combat-wave-pill">⚔️ &nbsp; WAVE <strong id="wave-label">1</strong></div></section>
+      <section class="battlefield" aria-label="Idle battle arena"><div class="battlefield-top"><span class="battlefield-kicker" id="battle-biome">🌲 &nbsp; WHISPERING WOODS</span><span class="battle-status" id="battle-status" role="status"><span></span> <b id="battle-status-text">AUTO BATTLE ACTIVE</b></span></div><div class="battle-squad-banner"><div><small>YOUR GARDEN TEAM</small><strong id="squad-banner-count">1 hero ready</strong></div><div class="squad-portraits" id="squad-portraits"></div><span class="team-attack-callout">✦ UNITED ATTACK</span></div><div class="battle-arena"><div class="battle-side legion-side"><div class="battle-side-label">HERO FORMATION</div><div class="battle-figures" id="battle-figures"></div><strong>Garden Team</strong><span id="legion-count"></span></div><div class="battle-center"><span class="battle-spark">✦</span><div class="battle-vs">VS</div><span class="battle-spark">✦</span></div><div class="battle-side enemy-side"><div class="battle-side-label" id="enemy-type"></div><div class="enemy-figure" id="enemy-figure"></div><strong id="enemy-name"></strong><span id="enemy-wave"></span></div></div><div class="battle-bars"><div class="battle-bar-block"><div class="bar-label"><span>💚 &nbsp; Legion health</span><strong id="party-hp-label"></strong></div><div class="health-track"><div class="health-fill party" id="party-hp-fill"></div></div></div><div class="battle-bar-block"><div class="bar-label"><span>❤️ &nbsp; Enemy health</span><strong id="enemy-hp-label"></strong></div><div class="health-track"><div class="health-fill enemy" id="enemy-hp-fill"></div></div></div></div><div class="ult-row"><button id="ult-btn" class="ult-button" disabled title="Unleash Sunlight Burst"><span class="ult-icon">☀️</span><span class="ult-text"><strong>SUNLIGHT BURST</strong><small id="ult-status">Charging (0%)</small></span><span class="ult-tag">2× DMG · HEAL 40%</span></button><div class="ult-progress"><div class="ult-fill" id="ult-fill"></div></div></div><div class="battlefield-bottom"><span>✨ &nbsp; Tap heroes in the garden to harvest bonus leaves! Unleash Sunlight Burst when charged.</span><span id="battle-reward"></span></div></section>
       <section class="combat-dashboard"><div class="combat-heading"><div><span class="section-kicker">YOUR ADVENTURE SO FAR</span><h2>Battle camp</h2></div><button class="return-garden" data-screen="garden">Upgrade heroes ${icon('arrow', 17)}</button></div><div class="combat-stat-grid"><div class="combat-stat"><span class="combat-stat-icon">⚔️</span><small>LEGION POWER</small><strong id="combat-power"></strong><p>Damage per second</p></div><div class="combat-stat"><span class="combat-stat-icon">🏆</span><small>WAVES CLEARED</small><strong id="waves-cleared"></strong><p>One victory at a time</p></div><div class="combat-stat"><span class="combat-stat-icon">🍃</span><small>BATTLE LEAVES</small><strong id="battle-earned"></strong><p>Earned from victories</p></div></div><div class="combat-lower"><div class="legion-card"><div class="card-heading"><div><h3>Heroes on the front line</h3><p>Every recruited hero joins the fight</p></div><span class="tiny-badge" id="legion-badge"></span></div><div id="legion-roster"></div></div><div class="battle-tip"><span>🌼</span><div><strong>Stronger roots, stronger heroes.</strong><p>Hero levels boost both Leaf Point production and battle damage. Win waves to earn bonus leaves, then return to the garden to grow your legion.</p></div><button data-screen="garden">Visit your garden ${icon('arrow', 16)}</button></div></div></section>
     </main>
     <main id="bag-screen" class="screen-view utility-screen" hidden><section class="utility-intro"><div><span class="eyebrow">✦ &nbsp; TREASURES FROM THE GLADE</span><h1>Accessories <em>& Bag.</em></h1><p>Win combat waves to discover accessories, then equip one to help your team.</p></div><span class="utility-hero-icon">🎒</span></section><div id="bag-content"></div></main>
@@ -175,6 +191,22 @@ function save() {
   if (resetting || pausedByOtherTab) return;
   state.lastSaved = Date.now();
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch { /* Game remains playable without storage. */ }
+  cloudSaver?.schedule(state);
+}
+// Máy khác vừa lưu bản mới hơn (hay gặp khi đồng hồ máy này chạy chậm): dừng lại như khi bị
+// tab khác giành quyền, để không đè lên tiến trình mới đó.
+function showNewerElsewhere(reason) {
+  if (pausedByOtherTab) return;
+  pausedByOtherTab = true;
+  document.body.classList.add('paused-by-other-tab');
+  const banner = document.createElement('div');
+  banner.className = 'tab-paused-banner';
+  banner.setAttribute('role', 'alert');
+  banner.innerHTML = reason === 'account_changed'
+    ? '<strong>You switched Chat accounts.</strong><span>This garden belongs to the previous account, so it stopped saving.</span><button type="button">Open my garden</button>'
+    : '<strong>Your garden was saved more recently on another device.</strong><span>This screen is paused so it won\'t overwrite that progress.</span><button type="button">Load latest</button>';
+  banner.querySelector('button').addEventListener('click', () => location.reload());
+  app.append(banner);
 }
 function toast(message) {
   const el = document.querySelector('#toast');
@@ -280,7 +312,9 @@ function renderCombat() {
   if (biomeEl) {
     biomeEl.innerHTML = `${biome.emoji} &nbsp; ${biome.name.toUpperCase()} <span class="biome-desc">${biome.desc}</span>`;
   }
-  document.querySelector('#battle-figures').innerHTML = owned.map(hero => `<span class="battle-hero ${hero.color}" title="${hero.name}">${hero.plant}<small>${hero.emoji}</small></span>`).join('');
+  document.querySelector('#battle-figures').innerHTML = owned.map(hero => `<span class="battle-hero ${hero.color}" title="${hero.name}">${heroPortrait(hero)}</span>`).join('');
+  document.querySelector('#squad-banner-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(getTroopCount())} troops ready`;
+  document.querySelector('#squad-portraits').innerHTML = owned.map(hero => `<span title="${hero.name}">${heroPortrait(hero)}</span>`).join('');
   document.querySelector('#legion-count').textContent = `${owned.length} hero${owned.length === 1 ? '' : 'es'} · ${fmt(getTroopCount())} troop${getTroopCount() === 1 ? '' : 's'}`;
   document.querySelector('#enemy-type').textContent = enemy.type.toUpperCase();
   document.querySelector('#enemy-figure').innerHTML = enemy.emoji;
@@ -472,8 +506,8 @@ function renderSettings() {
       <section class="settings-card">
         <span class="section-kicker">PROGRESS</span>
         <h2>Your save</h2>
-        <p>Your garden saves automatically in this browser.</p>
-        <div class="save-info">${icon('check', 19)} Local save is active</div>
+        <p>${cloud ? 'Your garden saves automatically to your Chat account, so it follows you to any device.' : 'Your garden saves automatically in this browser.'}</p>
+        <div class="save-info">${icon('check', 19)} ${cloud ? `Saved to ${escapeHtml(cloud.user.name)}'s account` : 'Local save is active'}</div>
         <button class="settings-action" data-save>Save progress now ${icon('arrow', 16)}</button>
         <div class="settings-divider"></div>
         <h3>Start a new garden</h3>
@@ -626,7 +660,18 @@ app.addEventListener('click', (event) => {
   if (event.target.closest('[data-save]')) { save(); toast('Garden progress saved.'); return; }
   if (event.target.closest('[data-reset]')) { resetPending = true; renderSettings(); return; }
   if (event.target.closest('[data-reset-cancel]')) { resetPending = false; renderSettings(); return; }
-  if (event.target.closest('[data-reset-confirm]')) { resetting = true; localStorage.removeItem(SAVE_KEY); location.href = location.pathname + location.search; return; }
+  if (event.target.closest('[data-reset-confirm]')) {
+    resetting = true;
+    localStorage.removeItem(SAVE_KEY);
+    const restart = () => { location.href = location.pathname + location.search; };
+    // Bản lưu trên server mới hơn ô trống thì lần mở sau sẽ lấy lại vườn cũ — ghi đè nó bằng
+    // một vườn mới tinh (đóng dấu thời gian bây giờ) trước khi tải lại.
+    if (cloudSaver) {
+      cloudSaver.schedule({ ...sanitizeSave(null), lastSaved: Date.now() });
+      Promise.resolve(cloudSaver.flush(true)).finally(restart);
+    } else restart();
+    return;
+  }
   const tab = event.target.closest('[data-tab]');
   if (tab && tab.dataset.tab !== activeTab) {
     activeTab = tab.dataset.tab;
@@ -779,6 +824,7 @@ document.addEventListener('visibilitychange', () => {
   if (pausedByOtherTab) return;
   if (document.hidden) {
     save();
+    cloudSaver?.flush(true);
   } else {
     const now = Date.now();
     const elapsed = Math.min(8 * 60 * 60, Math.max(0, (now - lastTick) / 1000));
@@ -791,7 +837,7 @@ document.addEventListener('visibilitychange', () => {
     }
   }
 });
-window.addEventListener('pagehide', save);
+window.addEventListener('pagehide', () => { save(); cloudSaver?.flush(true); });
 app.addEventListener('input', (event) => {
   const slider = event.target.closest('[data-volume]');
   if (!slider) return;

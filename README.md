@@ -14,7 +14,9 @@
 
 | 🌿 Cozy Garden HQ | ⚔️ Auto-Battle & Biomes |
 | :---: | :---: |
-| ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Screen](screenshots/screenshot-combat-engine.png) |
+| ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Team](screenshots/combat-team-desktop.png) |
+
+[View the mobile team battle](screenshots/combat-team-mobile.png).
 
 ---
 
@@ -28,6 +30,7 @@
 
 ### 2. ⚔️ Auto-Battle & Combat Progression
 - **Automated Glade Defense:** Recruited heroes and legion troops form an expedition force that automatically battles waves of glade creatures.
+- **Team Formation:** Up to six heroes stand together in a two-row formation. Each hero has a separate combat pose and joins a staggered team attack animation.
 - **5 Themed Biomes:** Journey across 150 progressive combat waves:
   - 🌼 **Whispering Glade** *(Waves 1–25)*
   - 🌵 **Thorny Thicket** *(Waves 26–50)*
@@ -214,3 +217,27 @@ npm test
 ## 📄 License
 
 MIT © [Quyen Nguyen](https://github.com/quyenanh198)
+
+
+---
+
+## 🔐 Chơi trong Chat (lưu theo tài khoản)
+
+Trên hub Lazybutts game chạy ở `chat.lazybutts.com/garden/`. Cùng host với Chat nên trình
+duyệt gửi kèm cookie đăng nhập `lb_session`; `server/server.js` hỏi Chat `GET /api/me` xem
+ai đang chơi và giữ bản lưu của người đó trong SQLite (`/data/garden.db`). Đổi máy vẫn chơi
+tiếp; máy dùng chung thì mỗi tài khoản một ô `localStorage` riêng.
+
+- `GET /api/save` → `{ user, save }`; chưa đăng nhập Chat thì 401 và game chạy bằng
+  `localStorage` như bản tĩnh (dev, GitHub Pages không đổi gì).
+- `PUT /api/save` kèm header `x-garden-user` = người mà trang đã mở ra. Lệch với cookie hiện
+  tại (đăng xuất Chat, người khác đăng nhập trên cùng máy) → `409 account_changed`: vườn của
+  người trước không bao giờ lọt vào tài khoản người sau.
+- Bản cũ hơn bản đang giữ (`lastSaved` nhỏ hơn) → `409 stale_save`, không đè tiến trình mới.
+- Reverse proxy phải **cắt tiền tố** `/garden` (Caddy `handle_path`); mọi URL phía client
+  đều tương đối.
+
+```sh
+docker build -t garden .
+docker run -p 8095:8095 -e CHAT_API_URL=http://chat:8082 -v garden-data:/data garden
+```
