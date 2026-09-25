@@ -1,6 +1,8 @@
 # Game art
 
-The PNG source art in `art-source/` was generated with the built-in image generation tool. The image supplied by the user was used as a style reference for cozy storybook fantasy art. The generated characters and garden scene are new artwork, with transparent backgrounds for character sprites. Matching `.webp` files in `public/assets/` are the optimized copies the game ships; together they total about 1.4 MB instead of 21 MB of PNG originals.
+The PNG source art in `art-source/` was generated with the built-in image generation tool. The image supplied by the user was used as a style reference for cozy storybook fantasy art. The generated characters and garden scene are new artwork, with transparent backgrounds for character sprites. Matching `.webp` files in `public/assets/` are the optimized copies the game ships; the original idle art totals about 1.4 MB instead of 21 MB of PNG originals.
+
+Each of the six heroes also has a transparent `-attack.png` action pose in `art-source/` and an optimized `-attack.webp` version in `public/assets/`. Combat crossfades between idle and attack art while Phaser moves the character through the strike and recovery.
 
 | Asset | File |
 | --- | --- |

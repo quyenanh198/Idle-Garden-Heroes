@@ -24,6 +24,32 @@
 @media(max-width:950px){.home-summary{grid-template-columns:repeat(2,1fr)}.unit-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:650px){.home-summary{grid-template-columns:repeat(2,1fr)}.unit-grid{grid-template-columns:1fr}.unit-card{min-height:0}.legion-intro-card{padding:16px;gap:8px}.legion-intro-card h3{font-size:19px}.legion-intro-card>span{font-size:9px;padding:7px}.unit-stats{margin-bottom:2px}}
 
+/* The squad occupies a shared battlefield, with the enemy on the far side. */
+.battle-squad-banner{display:flex;align-items:center;gap:20px;padding:15px 28px;background:linear-gradient(90deg,#315d3d,#547b4b);color:#fff;min-height:74px}
+.battle-squad-banner>div:first-child{display:flex;flex-direction:column;gap:3px;min-width:150px}
+.battle-squad-banner small{font-size:9px;font-weight:800;letter-spacing:1.6px;color:#d3e9bf}
+.battle-squad-banner strong{font:600 19px Fredoka,sans-serif}
+.squad-portraits{display:flex;align-items:center;flex:1;padding-left:7px}
+.squad-portraits span{display:block;width:45px;height:45px;margin-left:-7px;border:2px solid #eef9db;border-radius:50%;background:#dcecc5;overflow:hidden;box-shadow:0 3px 7px #1d3f2766}
+.squad-portraits img{width:100%;height:100%;object-fit:cover;object-position:center 28%;transform:scale(1.55)}
+.team-attack-callout{white-space:nowrap;background:#f9ecac;color:#5d6731;border-radius:30px;padding:9px 13px;font-size:10px;font-weight:900;letter-spacing:1px}
+.battle-arena{grid-template-columns:minmax(0,1.8fr) 66px minmax(0,1fr);min-height:355px;padding:18px 5% 8px;gap:8px}
+.battle-side{width:100%;align-self:stretch;justify-content:center}
+.legion-side{position:relative}
+.legion-side:before{content:'';position:absolute;z-index:0;inset:14% 2% 21%;border:1px solid #ffffffac;border-radius:50%;background:radial-gradient(ellipse at center,#fffce190,#bde2ae42 63%,transparent 72%);box-shadow:0 0 30px #ffffff90;pointer-events:none}
+.battle-side-label,.battle-side>strong,.battle-side>span:last-child{position:relative;z-index:1}
+.battle-figures{width:100%;height:218px;min-height:218px;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:5px;padding:0}
+.battle-hero{margin:0;width:90px;height:96px;font-size:0;border-radius:20px}
+.battle-hero img{width:100%;height:100%;object-fit:contain}
+.battle-hero:nth-child(n+4){margin-top:-24px}
+.enemy-figure{width:190px;height:190px;max-width:100%;margin-top:7px}
+.battle-center{z-index:4}
+.battle-vs{background:#fffdf0;border:2px solid #fff;box-shadow:0 6px 16px #365e4050;color:#56794d}
+.battlefield-top{background:#fffef459}
+.battle-bars{padding-top:4px}
+@media(max-width:760px){.battle-squad-banner{padding:12px 17px;gap:12px}.battle-squad-banner strong{font-size:15px}.battle-squad-banner>div:first-child{min-width:108px}.squad-portraits span{width:37px;height:37px}.team-attack-callout{font-size:8px;padding:7px}.battle-arena{grid-template-columns:minmax(0,1.65fr) 38px minmax(0,1fr);min-height:310px;padding:16px 3% 6px}.battle-figures{height:186px;min-height:186px}.battle-hero{width:69px;height:78px}.enemy-figure{width:125px;height:145px}}
+@media(max-width:560px){.battle-squad-banner{flex-wrap:wrap;gap:6px 10px;padding:11px 13px}.battle-squad-banner>div:first-child{min-width:0;flex:1}.battle-squad-banner strong{font-size:13px}.battle-squad-banner small{font-size:7px}.squad-portraits{order:3;width:100%;flex-basis:100%;padding-left:6px}.squad-portraits span{width:32px;height:32px}.team-attack-callout{font-size:7px}.battle-arena{grid-template-columns:minmax(0,1.55fr) 30px minmax(0,1fr);min-height:285px;padding:16px 8px 6px;gap:1px}.battle-figures{height:177px;min-height:177px}.battle-hero{width:58px;height:67px}.enemy-figure{width:100px;height:115px}.battle-side-label{font-size:7px;letter-spacing:1px}.battle-side>strong{font-size:13px}.battle-side>span:last-child{font-size:8px}.legion-side:before{inset:20% 0 25%}}
+
 /* --- Phases 1-3: Combat Ult, Biomes, Prestige Bloom & Ancient Relics --- */
 .floating-harvest.crit-tap{color:#d97706;font-size:16px;font-weight:800;filter:drop-shadow(0 2px 5px rgba(217,119,6,0.4));z-index:10}
 

@@ -14,7 +14,9 @@
 
 | 🌿 Cozy Garden HQ | ⚔️ Auto-Battle & Biomes |
 | :---: | :---: |
-| ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Screen](screenshots/screenshot-combat-engine.png) |
+| ![Garden Screen](screenshots/screenshot-garden-engine.png) | ![Combat Team](screenshots/combat-team-desktop.png) |
+
+[View the mobile team battle](screenshots/combat-team-mobile.png).
 
 ---
 
@@ -28,6 +30,7 @@
 
 ### 2. ⚔️ Auto-Battle & Combat Progression
 - **Automated Glade Defense:** Recruited heroes and legion troops form an expedition force that automatically battles waves of glade creatures.
+- **Team Formation:** Up to six heroes stand together in a two-row formation. Each hero has a separate combat pose and joins a staggered team attack animation.
 - **5 Themed Biomes:** Journey across 150 progressive combat waves:
   - 🌼 **Whispering Glade** *(Waves 1–25)*
   - 🌵 **Thorny Thicket** *(Waves 26–50)*
