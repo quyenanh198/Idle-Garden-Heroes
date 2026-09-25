@@ -19,6 +19,7 @@ const TYPES = {
   '.png': 'image/png',
   '.json': 'application/json',
   '.webmanifest': 'application/manifest+json',
+  '.woff2': 'font/woff2',
 };
 // Đúng những gì game dùng: script/ảnh của chính nó, font Google, và Phaser vẽ canvas
 // (ảnh tạo từ blob:/data:). Không có 'unsafe-inline' cho script.
