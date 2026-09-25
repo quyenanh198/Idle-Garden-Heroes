@@ -1,19 +1,14 @@
 import Phaser from 'phaser';
 import { restPose, tapKeyframes } from './tap-pose.js';
 import { playHeroAttack, playEnemyAttack, playHit } from './audio.js';
-import { combatPower, enemyDamage, enemyForWave, HERO_IMAGES, ENEMY_IMAGES, UNITS } from './game-engine.js';
+import { combatPower, enemyDamage, enemyForWave, UNITS } from './game-engine.js';
 import { fmt } from './format.js';
 
 const ASSET_BASE = `${import.meta.env.BASE_URL}assets/`;
-const assetMap = (images) => Object.fromEntries(Object.entries(images).map(([id, file]) => [id, `${ASSET_BASE}${file}.webp`]));
-const HERO_ASSETS = assetMap(HERO_IMAGES);
-const HERO_ATTACK_ASSETS = Object.fromEntries(Object.entries(HERO_IMAGES).map(([id, file]) => [id, `${ASSET_BASE}${file}-attack.webp`]));
-const ENEMY_ASSETS = assetMap(ENEMY_IMAGES);
-
-function loadImages(scene, prefix, assets) {
-  Object.entries(assets).forEach(([id, path]) => {
-    if (!scene.textures.exists(`${prefix}-${id}`)) scene.load.image(`${prefix}-${id}`, path);
-  });
+const cellSize = 256;
+const ATLAS_KEY = 'garden-characters';
+function loadCharacters(scene) {
+  if (!scene.textures.exists(ATLAS_KEY)) scene.load.atlas(ATLAS_KEY, `${ASSET_BASE}atlas-characters.webp`, `${ASSET_BASE}atlas-characters.json`);
 }
 
 // Short-lived effects (particles, damage text, flashes) are tracked so they can be
@@ -60,8 +55,8 @@ function rounded(g, color, x, y, width, height, radius = 10, alpha = 1) {
 
 function drawHero(scene, hero, x, y, scale = 1) {
   const texture = `hero-${hero.id}`;
-  if (scene.textures.exists(texture)) {
-    const sprite = scene.add.image(x, y, texture);
+  if (scene.textures.exists(ATLAS_KEY) && scene.textures.get(ATLAS_KEY).has(texture)) {
+    const sprite = scene.add.image(x, y, ATLAS_KEY, texture);
     sprite.heroId = hero.id;
     sprite.setScale((127 * scale) / sprite.height);
     sprite.restPose = { x, y, scaleX: sprite.scaleX, scaleY: sprite.scaleY, angle: 0 };
@@ -137,14 +132,14 @@ function drawHero(scene, hero, x, y, scale = 1) {
 function drawCombatHero(scene, hero, x, y, scale = 1) {
   const idleKey = `hero-${hero.id}`;
   const attackKey = `hero-attack-${hero.id}`;
-  if (!scene.textures.exists(idleKey) || !scene.textures.exists(attackKey)) return drawHero(scene, hero, x, y, scale);
+  if (!scene.textures.exists(ATLAS_KEY) || !scene.textures.get(ATLAS_KEY).has(idleKey) || !scene.textures.get(ATLAS_KEY).has(attackKey)) return drawHero(scene, hero, x, y, scale);
   const fighter = scene.add.container(x, y);
   fighter.heroId = hero.id;
   fighter.baseX = x;
   fighter.baseY = y;
   const shadow = scene.add.ellipse(0, 62 * scale, 86 * scale, 15 * scale, 0x345039, 0.18);
-  const idleArt = scene.add.image(0, 0, idleKey).setScale((145 * scale) / scene.textures.get(idleKey).getSourceImage().height);
-  const attackArt = scene.add.image(0, 0, attackKey).setScale((145 * scale) / scene.textures.get(attackKey).getSourceImage().height).setAlpha(0);
+  const idleArt = scene.add.image(0, 0, ATLAS_KEY, idleKey).setScale((145 * scale) / cellSize);
+  const attackArt = scene.add.image(0, 0, ATLAS_KEY, attackKey).setScale((145 * scale) / cellSize).setAlpha(0);
   fighter.add([shadow, idleArt, attackArt]);
   fighter.idleArt = idleArt;
   fighter.attackArt = attackArt;
@@ -162,8 +157,8 @@ function playCombatPose(scene, fighter) {
 
 function drawEnemy(scene, type, x, y) {
   const texture = `enemy-${type}`;
-  if (scene.textures.exists(texture)) {
-    const sprite = scene.add.image(x, y, texture);
+  if (scene.textures.exists(ATLAS_KEY) && scene.textures.get(ATLAS_KEY).has(texture)) {
+    const sprite = scene.add.image(x, y, ATLAS_KEY, texture);
     sprite.setScale((153 * (type === 'boss' ? 1.13 : 1)) / sprite.height);
     sprite.restPose = { x, y, scaleX: sprite.scaleX, scaleY: sprite.scaleY, angle: 0 };
     scene.tweens.add({ targets: sprite, y: y - 7, angle: 2, duration: 1450, ease: 'Sine.easeInOut', yoyo: true, repeat: -1 });
@@ -225,7 +220,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
 
   class GardenScene extends Phaser.Scene {
     constructor() { super({ key: 'garden', active: true }); }
-    preload() { loadImages(this, 'hero', HERO_ASSETS); }
+    preload() { loadCharacters(this); }
     create() {
       scenes.garden = this;
       this.characters = new Map();
@@ -310,9 +305,7 @@ export function initVisuals({ heroes, getState, getScreen, getMotion }) {
   class CombatScene extends Phaser.Scene {
     constructor() { super({ key: 'combat', active: false }); }
     preload() {
-      loadImages(this, 'hero', HERO_ASSETS);
-      loadImages(this, 'hero-attack', HERO_ATTACK_ASSETS);
-      loadImages(this, 'enemy', ENEMY_ASSETS);
+      loadCharacters(this);
     }
     create() {
       scenes.combat = this;
