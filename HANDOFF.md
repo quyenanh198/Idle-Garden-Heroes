@@ -2,14 +2,14 @@
 
 > **Document Version:** 1.0.0  
 > **Status:** Approved Roadmap  
-> **Target Platform:** Standalone Web / Mobile PWA (Served via Hardened Node Static Server / Docker)  
+> **Target Platform:** Web / Mobile PWA, optionally embedded in same-origin Chat with account saves
 > **Target Frameworks:** Phaser 3.90+ (WebGL/Canvas), Native HTML5/CSS, Web Audio API, Service Worker  
 
 ---
 
 ## 1. Executive Summary & Objective
 
-**Idle Garden Hero** currently has a mathematically balanced, robust idle engine, an offline calculation system, and a hardened standalone server architecture with zero remote dependencies and strict Content Security Policy (CSP).
+**Idle Garden Hero** has a mathematically balanced idle engine, offline calculation, local saves, and optional same-origin Chat account saves. The server keeps a strict Content Security Policy (CSP).
 
 However, while **core gameplay mechanics** are solid (hero progression, combat formulas, prestige/Bloom Anew, and Wizardry turn-based tactics), the **visual presentation and player interactions** are currently basic:
 - The game visually relies heavily on static HTML cards and flat CSS gradients.
@@ -247,7 +247,7 @@ To ensure no regressions in performance, gameplay, or security:
    - All visual additions must be purely cosmetic or interface layers; core game math and state must remain fully serialized through `sanitizeSave()`.
    - 100% backward compatibility with existing saves in `localStorage`.
 3. **Security Invariant:**
-   - Maintain the strict Content Security Policy (`script-src 'self'`, `frame-ancestors 'none'`, no external network calls).
+   - Maintain the strict Content Security Policy (`script-src 'self'`, `frame-ancestors 'self'`, browser requests limited to the same origin).
    - Zero remote tracking or external telemetry.
 4. **Automated Testing:**
    - All 51 current unit & regression tests must continue to pass without errors.
