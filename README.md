@@ -55,14 +55,39 @@
 - **Boss Waves:** Face formidable shadow bosses every 5 waves for elevated Leaf Point rewards.
 - **Tactile Combat VFX:** Hero-specific color projectiles, enemy spore attacks with party pushback, hit spark reactions, and floating damage numbers.
 
-### 3. ☀️ "Sunlight Burst" Ultimate Skill
+### 3. 📈 Hero Leveling & Multi-Layered Power Scaling
+Hero progression forms the backbone of both your garden economy and dungeon crawling strength through an exponential multi-layered scaling architecture:
+
+- **Exponential Upgrade Costs:**
+  Hero upgrade costs scale by **+32% per level** following the formula:
+  $$\text{Cost}(\text{level}) = \lceil \text{upgradeBase} \times 1.32^{(\text{level} - 1)} \rceil$$
+- **Triple-Pillar Level Growth:**
+  Every level invested into a hero elevates three distinct capabilities:
+  1. **Passive Leaf Production (LPS):**
+     $$\text{LPS}_{\text{hero}} = \text{Level} \times \text{baseLps} \times \text{harvestMultiplier}$$
+     Scaled by *Golden Watering Can* (+25%/lvl), *Fertile Soil* (+20%/lvl), and *Leaf Charm* (+10%).
+  2. **Combat Attack Power (DPS):**
+     $$\text{Power}_{\text{hero}} = \text{Level} \times \text{baseLps} \times 3 \times \text{powerMultiplier}$$
+     Scaled by *Training Grounds* (+20%/lvl), *Sunlight Crystal* (+15%/lvl), *Rose Brooch* (+15%), and *Sunlight Burst* (2×).
+  3. **Party Vitality (Max HP):**
+     Every single hero level grants permanent **+10 Max HP** to the shared party health pool and immediately restores 10 HP to the active battle:
+     $$\text{Max HP}_{\text{party}} = 100 + \sum (\text{Level}_{\text{hero}} \times 10) + \text{HP}_{\text{legion}} + \text{HP}_{\text{boosts/relics/badge}}$$
+- **Active Tap Harvest Scaling:**
+  Tapping a hero plot yields instant rewards proportional to their level and base LPS:
+  $$\text{Tap Yield} = \lceil (\text{baseLps} \times \text{Level} \times 0.5) \times \text{harvestMultiplier} \times (3 \text{ on 12% Crit}) \rceil$$
+- **DRPG Skill Scaling:**
+  In the Wizardry turn engine, specialized hero attacks (such as Rose Mage's *Thorn Barrage* at 1.8× or Sunflower Sage's *Solar Beam* at 2.2×) calculate damage directly from the hero's base power (`baseLps * 3 * level`), while healing blossoms restore percentages of the party's ever-growing Max HP.
+- **Prestige Amplification (Bloom Anew):**
+  When transcending the glade at Wave 25+, Golden Seeds fund permanent ancient artifacts that dramatically multiply the power gains of each level in subsequent cycles.
+
+### 4. ☀️ "Sunlight Burst" Ultimate Skill
 - **Energy Gauge:** Charges passively at 4%/sec and gains +5% bonus on every wave victory.
 - **Unleash the Sunlight:** When 100% full, trigger **Sunlight Burst** to:
   - Instantly restore **40% Party Max HP**.
   - Boost **Combat Power by 2×** for 8 seconds.
   - Illuminate the battlefield with radiant sunbeams and radial starburst particles.
 
-### 4. 🌸 "Bloom Anew" Prestige System & Ancient Relics
+### 5. 🌸 "Bloom Anew" Prestige System & Ancient Relics
 - **Transcend the Glade:** Unlocks at **Wave 25+**. Reset heroes, plots, and battle progression to harvest cosmic **Golden Seeds** (scaled by wave depth, wins, and lifetime harvested leaves).
 - **Persistent Progress:** All equippable Bag treasures, Golden Seeds, and Ancient Artifacts persist across resets. Accessories unlock from *lifetime* wave wins, so a bloom never re-locks them.
 - **5 Ancient Artifacts:**
@@ -72,18 +97,18 @@
   4. ✨ **Golden Dew Bucket:** `+25%` Ultimate Energy Charge Rate per level.
   5. 🍀 **Clover of Fortune:** `+20%` Wave Reward leaves per level.
 
-### 5. 🎵 Built-in Cozy Web Audio Synthesizer
+### 6. 🎵 Built-in Cozy Web Audio Synthesizer
 - **Zero-Dependency Audio:** Synthesized entirely via the browser's native `AudioContext` (no external MP3/WAV downloads, zero latency, zero bandwidth bloat).
 - **Hero-Specific Tones:** Distinct attack signatures (Sprout Knight sword sweep, Rose Mage crystal chime, Oak Sentinel deep thud, Sunflower Sage warm harmonic chord).
 - **Full Soundscape:** Tap harvest notes, crit fanfare, enemy spore impacts, level-up chimes, wave victory jingles, ultimate roar, and cosmic bloom melody.
 - **Mute & Volume Control:** Toggle sound effects and set a master volume in Settings, both saved locally.
 
-### 6. 🎒 Bag, Accessories & Upgrades
+### 7. 🎒 Bag, Accessories & Upgrades
 - **Accessories:** Earn unique relics (Leaf Charm, Rose Brooch, Oak Badge, Sunstone Pendant) by achieving battle win milestones.
 - **Permanent Leaf Boosts:** Spend Leaf Points on *Golden Watering Can* (+25% harvest), *Training Grounds* (+20% power), and *Healing Spring* (+40 HP).
 - **Legion Recruitment:** Train Seedling Scouts, Bloom Archers, and Root Guardians to support your party in both harvest and war.
 
-### 7. 💤 Offline Progression
+### 8. 💤 Offline Progression
 - Automatically computes up to **8 hours** of offline harvest and wave advancement on tab return.
 - **Anti-Stalemate Protection:** Halts combat loops in `<1ms` if the party reaches an impasse, eliminating browser freezing or battery drain.
 
@@ -93,14 +118,14 @@
 
 ### Garden Heroes
 
-| Hero | Plant Type | Role | Base LPS | Unlock Plot |
-| :--- | :---: | :--- | :---: | :---: |
-| **Sprout Knight** | 🌱 | Brave Sprout | `1.0` / sec | Plot 1 (Default) |
-| **Rose Mage** | 🌹 | Thorn Sorceress | `3.5` / sec | Plot 2 |
-| **Oak Sentinel** | 🌳 | Glade Guardian | `8.0` / sec | Plot 3 |
-| **Daisy Dancer** | 🌼 | Meadow Sprite | `18.0` / sec | Plot 4 |
-| **Moss Golem** | 🪨 | Ancient Protector | `40.0` / sec | Plot 5 |
-| **Sunflower Sage** | ☀️ | Solar Luminary | `90.0` / sec | Plot 6 |
+| Hero | Plant Type | Role | Base LPS | Upgrade Base | Unlock Plot |
+| :--- | :---: | :--- | :---: | :---: | :---: |
+| **Sprout Knight** | 🌱 | Brave Sprout | `1.0` / sec | 12 🍃 | Plot 1 (Default) |
+| **Rose Mage** | 🌹 | Thorn Sorceress | `4.0` / sec | 55 🍃 | Plot 2 (65 🍃) |
+| **Oak Sentinel** | 🌳 | Glade Guardian | `12.0` / sec | 180 🍃 | Plot 3 (280 🍃) |
+| **Daisy Dancer** | 🌼 | Meadow Sprite | `32.0` / sec | 560 🍃 | Plot 4 (980 🍃) |
+| **Moss Golem** | 🪨 | Ancient Protector | `90.0` / sec | 1,800 🍃 | Plot 5 (3,400 🍃) |
+| **Sunflower Sage** | ☀️ | Solar Luminary | `240.0` / sec | 6,200 🍃 | Plot 6 (11,000 🍃) |
 
 ### Legion Troops
 
