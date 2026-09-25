@@ -214,9 +214,9 @@ gantt
 ### Milestone Deliverables
 
 #### Milestone A: "Living Glade" (Days 1–5)
-- [ ] Add 3-layer parallax scrolling backgrounds for all 5 Biomes.
-- [ ] Implement day/night color grading and dynamic rain/sunbeam particle emitters.
-- [ ] Add hit-stop and subtle screen shake to combat critical strikes.
+- [x] Add 3-layer parallax scrolling backgrounds for all 5 Biomes.
+- [x] Implement day/night color grading and dynamic rain/sunbeam particle emitters.
+- [x] Add hit-stop and subtle screen shake to combat critical strikes.
 
 #### Milestone B: "Tactile Garden" (Days 6–9)
 - [ ] Implement draggable Watering Can tool with temporary boost mechanics.

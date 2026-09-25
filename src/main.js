@@ -49,6 +49,7 @@ import {
 } from './game-engine.js';
 
 import { fmt, fmtRate } from './format.js';
+import { createEnvironment } from './environment.js';
 import { connectCloud, createCloudSaver, pickNewer } from './cloud-save.js';
 import {
   setSoundEnabled,
@@ -372,6 +373,8 @@ app.innerHTML = `
 const grid = document.querySelector('#garden-grid');
 const content = document.querySelector('#tab-content');
 const stage = document.querySelector('#tab-stage');
+createEnvironment(document.querySelector('.garden-panel'), { getMotion: () => state.settings.motion });
+const combatEnvironment = createEnvironment(document.querySelector('.battlefield'), { getMotion: () => state.settings.motion });
 
 function save() {
   if (resetting || pausedByOtherTab) return;
@@ -493,6 +496,7 @@ function renderCombat() {
   const battle = state.battle;
   const enemy = enemyForWave(battle.wave);
   const biome = biomeForWave(battle.wave);
+  combatEnvironment.setBiome(biome.id);
   const owned = HEROES.filter(hero => state.heroes[hero.id]);
   const dungeonDepth = floorForWave(battle.wave);
 
